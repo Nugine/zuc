@@ -20,4 +20,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod zuc128;
+mod eea3_128;
+
 pub use self::zuc128::ZUC128;
