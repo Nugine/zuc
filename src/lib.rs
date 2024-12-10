@@ -15,9 +15,12 @@
 )]
 #![allow(
     clippy::inline_always, //
+    clippy::module_name_repetitions
 )]
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod zuc128;
-pub use self::zuc128::ZUC128;
+
+pub use self::zuc128::{Zuc128, Zuc128Core};
+pub use cipher;

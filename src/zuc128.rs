@@ -1,29 +1,27 @@
 //! ZUC-128 Algorithms
 
-use std::mem;
-
 /// d constants
-static D: [u16; 16] = [
-    0b_0100_0100_1101_0111,
-    0b_0010_0110_1011_1100,
-    0b_0110_0010_0110_1011,
-    0b_0001_0011_0101_1110,
-    0b_0101_0111_1000_1001,
-    0b_0011_0101_1110_0010,
-    0b_0111_0001_0011_0101,
-    0b_0000_1001_1010_1111,
-    0b_0100_1101_0111_1000,
-    0b_0010_1111_0001_0011,
-    0b_0110_1011_1100_0100,
-    0b_0001_1010_1111_0001,
-    0b_0101_1110_0010_0110,
-    0b_0011_1100_0100_1101,
-    0b_0111_1000_1001_1010,
-    0b_0100_0111_1010_1100,
+const D: [u32; 16] = [
+    0b_0100_0100_1101_0111_0000_0000,
+    0b_0010_0110_1011_1100_0000_0000,
+    0b_0110_0010_0110_1011_0000_0000,
+    0b_0001_0011_0101_1110_0000_0000,
+    0b_0101_0111_1000_1001_0000_0000,
+    0b_0011_0101_1110_0010_0000_0000,
+    0b_0111_0001_0011_0101_0000_0000,
+    0b_0000_1001_1010_1111_0000_0000,
+    0b_0100_1101_0111_1000_0000_0000,
+    0b_0010_1111_0001_0011_0000_0000,
+    0b_0110_1011_1100_0100_0000_0000,
+    0b_0001_1010_1111_0001_0000_0000,
+    0b_0101_1110_0010_0110_0000_0000,
+    0b_0011_1100_0100_1101_0000_0000,
+    0b_0111_1000_1001_1010_0000_0000,
+    0b_0100_0111_1010_1100_0000_0000,
 ];
 
 /// S0 box
-static S0: [u8; 256] = const_str::hex!([
+const S0: [u8; 256] = const_str::hex!([
     "3E 72 5B 47 CA E0 00 33 04 D1 54 98 09 B9 6D CB",
     "7B 1B F9 32 AF 9D 6A A5 B8 2D FC 1D 08 53 03 90",
     "4D 4E 84 99 E4 CE D9 91 DD B6 85 48 8B 29 6E AC",
@@ -43,7 +41,7 @@ static S0: [u8; 256] = const_str::hex!([
 ]);
 
 /// S1 box
-static S1: [u8; 256] = const_str::hex!([
+const S1: [u8; 256] = const_str::hex!([
     "55 C2 63 71 3B C8 47 86 9F 3C DA 5B 29 AA FD 77",
     "8C C5 94 0C A6 1A 13 00 E3 A8 16 72 40 F9 F8 42",
     "44 26 68 96 81 D9 45 3E 10 76 C6 A7 8B 39 43 E1",
@@ -62,336 +60,234 @@ static S1: [u8; 256] = const_str::hex!([
     "64 BE 85 9B 2F 59 8A D7 B0 25 AC AF 12 03 E2 F2",
 ]);
 
-/// (a + b) mod (2^32)
-#[inline(always)]
-fn add(a: u32, b: u32) -> u32 {
-    a.wrapping_add(b)
-}
+use cipher::consts::{U1, U16, U4};
+use cipher::{
+    AlgorithmName, Block, BlockSizeUser, Iv, IvSizeUser, Key, KeyIvInit, KeySizeUser,
+    ParBlocksSizeUser, StreamBackend, StreamCipherCore, StreamCipherCoreWrapper, StreamClosure,
+};
 
-/// rotate left
-#[inline(always)]
-fn rol(x: u32, n: u32) -> u32 {
-    x.rotate_left(n)
-}
-
-/// L1 linear transform
-#[inline(always)]
-fn l1(x: u32) -> u32 {
-    x ^ rol(x, 2) ^ rol(x, 10) ^ rol(x, 18) ^ rol(x, 24)
-}
-
-/// L2 linear transform
-#[inline(always)]
-fn l2(x: u32) -> u32 {
-    x ^ rol(x, 8) ^ rol(x, 14) ^ rol(x, 22) ^ rol(x, 30)
-}
-
-/// S box transform
-#[inline(always)]
-fn sbox(x: u32) -> u32 {
-    let x = x.to_be_bytes();
-    let y = [
-        S0[x[0] as usize],
-        S1[x[1] as usize],
-        S0[x[2] as usize],
-        S1[x[3] as usize],
-    ];
-    u32::from_be_bytes(y)
-}
-
-/// (a * b) mod (2^31 - 1)
-#[inline(always)]
-fn mul_m31(a: u32, b: u32) -> u32 {
-    ((u64::from(a) * u64::from(b)) % ((1 << 31) - 1)) as u32
-}
-
-/// (a + b) mod (2^31 - 1)
-#[inline(always)]
-fn add_m31(a: u32, b: u32) -> u32 {
-    let c = add(a, b);
-    (c & 0x7FFF_FFFF) + (c >> 31)
-}
-
-/// ZUC128 keystream generator
-/// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=8C41A3AEECCA52B5C0011C8010CF0715))
-#[derive(Debug, Clone)]
-pub struct ZUC128 {
-    /// LFSR registers (31-bit words x16)
+/// [`StreamCipherCore`] implementation for ZUC-128
+pub struct Zuc128Core {
+    /// LFSR registers S0 to S15
     s: [u32; 16],
-
-    /// R1 state unit (32 bits)
-    r1: u32,
-
-    /// R2 state unit (32 bits)
-    r2: u32,
-
-    /// X buffer
-    x: [u32; 4],
+    /// memory cells R1 and R2
+    r: [u32; 2],
 }
 
-impl ZUC128 {
-    /// Zero-initialized
-    #[allow(unsafe_code)]
-    fn zeroed() -> Self {
-        unsafe { mem::zeroed() }
-    }
-
-    /// Creates a ZUC128 keystream generator
-    #[must_use]
-    pub fn new(key: &[u8; 16], iv: &[u8; 16]) -> Self {
-        let mut zuc = Self::zeroed();
-
-        for i in 0..16 {
-            let k_i = u32::from(key[i]);
-            let d_i = u32::from(D[i]);
-            let iv_i = u32::from(iv[i]);
-            zuc.s[i] = (k_i << 23) | (d_i << 8) | iv_i;
+impl Zuc128Core {
+    /// function `LFSRWithInitialisationMode`
+    fn lfsr_with_init_mode(&mut self, u: u32) {
+        let mut sum = [
+            u64::from(self.s[15]) << 15,
+            u64::from(self.s[13]) << 17,
+            u64::from(self.s[10]) << 21,
+            u64::from(self.s[4]) << 20,
+            u64::from(self.s[0]) << 8,
+            u64::from(self.s[0]),
+            u64::from(u),
+        ]
+        .into_iter()
+        .sum::<u64>();
+        sum = (sum >> 31) + (sum % (1 << 31)); // <= 2^32 - 2
+        sum = (sum >> 31) + (sum % (1 << 31)); // <= 2^31 - 1
+        for i in 0..15 {
+            self.s[i] = self.s[i + 1];
         }
-
-        for _ in 0..32 {
-            zuc.bit_reconstruction();
-            let w = zuc.f();
-            zuc.lfsr_with_initialization_mode(w >> 1);
-        }
-        zuc.generate();
-
-        zuc
+        self.s[15] = u32::try_from(sum).unwrap(); // this never panics as sum <= 2^31 - 1
     }
 
-    /// `BitReconstruction` function
-    fn bit_reconstruction(&mut self) {
-        let Self { s, x, .. } = self;
-        x[0] = ((s[15] & 0x7FFF_8000) << 1) | (s[14] & 0xFFFF);
-        x[1] = ((s[11] & 0xFFFF) << 16) | (s[9] >> 15);
-        x[2] = ((s[7] & 0xFFFF) << 16) | (s[5] >> 15);
-        x[3] = ((s[2] & 0xFFFF) << 16) | (s[0] >> 15);
+    /// function `LFSRWithWorkMode`
+    fn lfsr_with_work_mode(&mut self) {
+        self.lfsr_with_init_mode(0);
     }
 
-    /// F non-linear function
-    fn f(&mut self) -> u32 {
-        let Self { x, r1, r2, .. } = self;
+    /// function `BitReorganisation`
+    const fn bit_reorganization(&self) -> [u32; 4] {
+        [
+            ((self.s[15] << 1) & 0xffff_0000) | self.s[14] & 0xffff,
+            self.s[11] << 16 | self.s[9] >> 15,
+            self.s[7] << 16 | self.s[5] >> 15,
+            self.s[2] << 16 | self.s[0] >> 15,
+        ]
+    }
 
-        let w = add(x[0] ^ (*r1), *r2);
-        let w1 = add(*r1, x[1]);
-        let w2 = (*r2) ^ x[2];
-        *r1 = sbox(l1((w1 << 16) | (w2 >> 16)));
-        *r2 = sbox(l2((w2 << 16) | (w1 >> 16)));
+    /// S-box
+    const fn s(x: u32) -> u32 {
+        let bytes = x.to_le_bytes();
+        let bytes = [
+            S1[bytes[0] as usize],
+            S0[bytes[1] as usize],
+            S1[bytes[2] as usize],
+            S0[bytes[3] as usize],
+        ];
+        u32::from_le_bytes(bytes)
+    }
 
+    /// linear transform L1
+    const fn l1(x: u32) -> u32 {
+        x ^ x.rotate_left(2) ^ x.rotate_left(10) ^ x.rotate_left(18) ^ x.rotate_left(24)
+    }
+
+    /// linear transform L2
+    const fn l2(x: u32) -> u32 {
+        x ^ x.rotate_left(8) ^ x.rotate_left(14) ^ x.rotate_left(22) ^ x.rotate_left(30)
+    }
+
+    /// nonlinear function F
+    fn f(&mut self, x: [u32; 3]) -> u32 {
+        let w = (x[0] ^ self.r[0]).wrapping_add(self.r[1]);
+        let w1 = self.r[0].wrapping_add(x[1]);
+        let w2 = self.r[1] ^ x[2];
+        self.r[0] = Self::s(Self::l1(w1 << 16 | w2 >> 16));
+        self.r[1] = Self::s(Self::l2(w2 << 16 | w1 >> 16));
         w
     }
+}
 
-    /// `LFSRWithInitialisationMode` function
-    fn lfsr_with_initialization_mode(&mut self, u: u32) {
-        let Self { s, .. } = self;
-        let v = {
-            let v1 = mul_m31(1 << 15, s[15]);
-            let v2 = mul_m31(1 << 17, s[13]);
-            let v3 = mul_m31(1 << 21, s[10]);
-            let v4 = mul_m31(1 << 20, s[4]);
-            let v5 = mul_m31((1 << 8) + 1, s[0]);
-            add_m31(v1, add_m31(v2, add_m31(v3, add_m31(v4, v5))))
-        };
-        let mut s16 = add_m31(v, u);
-        if s16 == 0 {
-            s16 = (1 << 31) - 1;
-        }
-        for i in 0..15 {
-            s[i] = s[i + 1];
-        }
-        s[15] = s16;
+impl AlgorithmName for Zuc128Core {
+    fn write_alg_name(f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "ZUC-128")
     }
+}
 
-    /// `LFSRWithWorkMode` function
-    fn lfsr_with_work_mode(&mut self) {
-        let Self { s, .. } = self;
-        let v = {
-            let v1 = mul_m31(1 << 15, s[15]);
-            let v2 = mul_m31(1 << 17, s[13]);
-            let v3 = mul_m31(1 << 21, s[10]);
-            let v4 = mul_m31(1 << 20, s[4]);
-            let v5 = mul_m31((1 << 8) + 1, s[0]);
-            add_m31(v1, add_m31(v2, add_m31(v3, add_m31(v4, v5))))
-        };
-        let mut s16 = v;
-        if s16 == 0 {
-            s16 = (1 << 31) - 1;
+impl KeySizeUser for Zuc128Core {
+    type KeySize = U16;
+}
+
+impl IvSizeUser for Zuc128Core {
+    type IvSize = U16;
+}
+
+impl KeyIvInit for Zuc128Core {
+    fn new(key: &Key<Self>, iv: &Iv<Self>) -> Self {
+        let mut s = D;
+        s.iter_mut().zip(key).zip(iv).for_each(|((s, &k), &i)| {
+            *s |= u32::from(k) << 23;
+            *s |= u32::from(i);
+        });
+        let mut zuc = Self { s, r: [0, 0] };
+        for _ in 0..32 {
+            let x = zuc.bit_reorganization();
+            let w = zuc.f([x[0], x[1], x[2]]);
+            zuc.lfsr_with_init_mode(w >> 1);
         }
-        for i in 0..15 {
-            s[i] = s[i + 1];
-        }
-        s[15] = s16;
+        let x = zuc.bit_reorganization();
+        zuc.f([x[0], x[1], x[2]]);
+        // put off the `LFSRWithWorkMode()` in the specification to the first key stream generation
+        zuc
     }
+}
 
-    /// Generates the next 32-bit word in ZUC128 keystream
-    pub fn generate(&mut self) -> u32 {
-        self.bit_reconstruction();
-        let z = self.f() ^ self.x[3];
+impl BlockSizeUser for Zuc128Core {
+    type BlockSize = U4;
+}
+
+impl ParBlocksSizeUser for Zuc128Core {
+    type ParBlocksSize = U1;
+}
+
+impl StreamBackend for Zuc128Core {
+    fn gen_ks_block(&mut self, block: &mut Block<Self>) {
+        // This is moved from the end (as in the specification) to the beginning
+        // to save one `LFSRWithWorkMode()`
         self.lfsr_with_work_mode();
-        z
+        let x = self.bit_reorganization();
+        let z = self.f([x[0], x[1], x[2]]) ^ x[3];
+        block.copy_from_slice(&z.to_be_bytes());
     }
 }
 
-impl Iterator for ZUC128 {
-    type Item = u32;
+impl StreamCipherCore for Zuc128Core {
+    fn remaining_blocks(&self) -> Option<usize> {
+        None
+    }
 
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.generate())
+    fn process_with_backend(&mut self, f: impl StreamClosure<BlockSize = Self::BlockSize>) {
+        f.call(self);
     }
 }
+
+/// [`StreamCipher`][cipher::StreamCipher] implementation for ZUC-128
+pub type Zuc128 = StreamCipherCoreWrapper<Zuc128Core>;
 
 #[cfg(test)]
 mod tests {
-    use super::ZUC128;
+    use super::*;
 
-    struct Example {
-        k: [u8; 16],
+    // https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
+
+    struct TestSet {
+        key: [u8; 16],
         iv: [u8; 16],
-        expected: [[u32; 8]; 3],
+        output: Vec<Option<u32>>,
     }
 
-    static EXAMPLE1: Example = Example {
-        k: [0; 16],
-        iv: [0; 16],
-        expected: [
-            [
-                0x7c37_ba6b,
-                0xb136_7f6c,
-                0x1e42_6568,
-                0xdd0b_f9c2,
-                0x3512_bf50,
-                0xa092_0453,
-                0x286d_afe5,
-                0x7f08_e141,
-            ],
-            [
-                0xfe11_8d6a,
-                0xd452_2c3a,
-                0xe955_463d,
-                0x4c2b_e8f9,
-                0xc7ee_7f13,
-                0x0c0f_a817,
-                0x27be_de74,
-                0x3d38_3d04,
-            ],
-            [
-                0x7a70_e141,
-                0x9a74_e229,
-                0x071e_62e2,
-                0xc82e_c4b3,
-                0xdde6_3da7,
-                0xb9dd_6a41,
-                0x0180_82da,
-                0x13d6_d780,
-            ],
-        ],
-    };
-
-    static EXAMPLE2: Example = Example {
-        k: [0xff; 16],
-        iv: [0xff; 16],
-        expected: [
-            [
-                0x3fc8_1ce8,
-                0xc2d1_41d1,
-                0x4bd0_8879,
-                0x4227_1346,
-                0xaa13_1b11,
-                0x09d7_706c,
-                0x668b_56df,
-                0x13f5_6dbf,
-            ],
-            [
-                0x27ea_6106,
-                0x82c8_f4b6,
-                0x0b14_d499,
-                0x9187_2523,
-                0x251e_7804,
-                0xcaac_5d66,
-                0x0657_cfa0,
-                0x0c0f_e353,
-            ],
-            [
-                0x181f_6dbf,
-                0x04a2_1879,
-                0xf24c_93c6,
-                0x773b_4aaa,
-                0xd94e_9228,
-                0x91d8_8fba,
-                0x7096_398b,
-                0x10f1_eecf,
-            ],
-        ],
-    };
-
-    static EXAMPLE3: Example = Example {
-        k: [
-            0x3d, 0x4c, 0x4b, 0xe9, 0x6a, 0x82, 0xfd, 0xae, //
-            0xb5, 0x8f, 0x64, 0x1d, 0xb1, 0x7b, 0x45, 0x5b, //
-        ],
-        iv: [
-            0x84, 0x31, 0x9a, 0xa8, 0xde, 0x69, 0x15, 0xca, //
-            0x1f, 0x6b, 0xda, 0x6b, 0xfb, 0xd8, 0xc7, 0x66, //
-        ],
-        expected: [
-            [
-                0xf534_2a57,
-                0x6e20_ef69,
-                0x5d6a_8f32,
-                0x0ce1_21b4,
-                0x129d_8b39,
-                0x2d7c_dce1,
-                0x3ead_461d,
-                0x3d4a_a9e7,
-            ],
-            [
-                0x7a95_1cff,
-                0x40b9_2b65,
-                0x0a37_4ea7,
-                0x8174_b6d5,
-                0xab7c_f688,
-                0xc159_8aa6,
-                0x14f1_c272,
-                0x71db_1828,
-            ],
-            [
-                0xe3b6_a9e7,
-                0x5503_49fe,
-                0xaf31_e6ee,
-                0x385a_2e0c,
-                0x3cec_1a4a,
-                0x9053_cc0e,
-                0x3279_c419,
-                0x2589_37da,
-            ],
-        ],
-    };
+    impl TestSet {
+        fn run(&self) {
+            let mut core = Zuc128Core::new(&self.key.into(), &self.iv.into());
+            let mut block = Block::<Zuc128Core>::default();
+            for o in &self.output {
+                core.gen_ks_block(&mut block);
+                if let Some(o) = o {
+                    assert_eq!(block, o.to_be_bytes().into());
+                }
+            }
+        }
+    }
 
     #[test]
-    fn examples() {
-        for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3] {
-            let mut zuc = ZUC128::new(k, iv);
-
-            assert_eq!(zuc.x, expected[0][..4]);
-            assert_eq!(zuc.r1, expected[0][4]);
-            assert_eq!(zuc.r2, expected[0][5]);
-            assert_eq!(zuc.s[15], expected[0][7]);
-
-            let z1 = zuc.generate();
-
-            assert_eq!(zuc.x, expected[1][..4]);
-            assert_eq!(zuc.r1, expected[1][4]);
-            assert_eq!(zuc.r2, expected[1][5]);
-            assert_eq!(z1, expected[1][6]);
-            assert_eq!(zuc.s[15], expected[1][7]);
-
-            let z2 = zuc.generate();
-
-            assert_eq!(zuc.x, expected[2][..4]);
-            assert_eq!(zuc.r1, expected[2][4]);
-            assert_eq!(zuc.r2, expected[2][5]);
-            assert_eq!(z2, expected[2][6]);
-            assert_eq!(zuc.s[15], expected[2][7]);
+    fn test_set_1() {
+        TestSet {
+            key: [0; 16],
+            iv: [0; 16],
+            output: vec![Some(0x27be_de74), Some(0x0180_82da)],
         }
+        .run();
+    }
+
+    #[test]
+    fn test_set_2() {
+        TestSet {
+            key: [0xff; 16],
+            iv: [0xff; 16],
+            output: vec![Some(0x0657_cfa0), Some(0x7096_398b)],
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_set_3() {
+        TestSet {
+            key: [
+                0x3d, 0x4c, 0x4b, 0xe9, 0x6a, 0x82, 0xfd, 0xae, 0xb5, 0x8f, 0x64, 0x1d, 0xb1, 0x7b,
+                0x45, 0x5b,
+            ],
+            iv: [
+                0x84, 0x31, 0x9a, 0xa8, 0xde, 0x69, 0x15, 0xca, 0x1f, 0x6b, 0xda, 0x6b, 0xfb, 0xd8,
+                0xc7, 0x66,
+            ],
+            output: vec![Some(0x14f1_c272), Some(0x3279_c419)],
+        }
+        .run();
+    }
+
+    #[test]
+    fn test_set_4() {
+        let mut output = vec![None; 2000];
+        output[0] = Some(0xed44_00e7);
+        output[1] = Some(0x0633_e5c5);
+        output[1999] = Some(0x7a57_4cdb);
+        TestSet {
+            key: [
+                0x4d, 0x32, 0x0b, 0xfa, 0xd4, 0xc2, 0x85, 0xbf, 0xd6, 0xb8, 0xbd, 0x00, 0xf3, 0x9d,
+                0x8b, 0x41,
+            ],
+            iv: [
+                0x52, 0x95, 0x9d, 0xab, 0xa0, 0xbf, 0x17, 0x6e, 0xce, 0x2d, 0xc3, 0x15, 0x04, 0x9e,
+                0xb5, 0x74,
+            ],
+            output,
+        }
+        .run();
     }
 }
