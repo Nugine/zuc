@@ -26,6 +26,6 @@ mod zuc128;
 pub use self::zuc128::Zuc128;
 
 mod zuc256;
-pub use self::zuc256::{MacLength, Zuc256};
+pub use self::zuc256::Zuc256;
 
 mod utils;
