@@ -15,6 +15,7 @@
 )]
 #![allow(
     clippy::inline_always, //
+    clippy::needless_range_loop,
 )]
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]

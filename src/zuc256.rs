@@ -164,10 +164,10 @@ mod tests {
     };
 
     #[test]
-    fn unit_test_256() {
+    fn examples() {
         for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2] {
             let mut zuc = Zuc256::new(k, iv);
-            for i in 0..20 {
+            for i in 0..expected.len() {
                 assert_eq!(zuc.generate(), expected[i]);
             }
         }

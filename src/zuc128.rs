@@ -189,7 +189,7 @@ mod tests {
     };
 
     #[test]
-    fn unit_test_zuc_128() {
+    fn examples() {
         for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3] {
             let mut zuc = Zuc128::new(k, iv);
 
