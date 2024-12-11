@@ -1,9 +1,19 @@
 #![allow(unused_imports, unused_variables)]
 
 use std::ops::BitXor;
-use bytemuck::cast_slice;
 use crate::ZUC128;
 
+/// zuc xor encryption algorithm
+/// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
+///
+/// # input:
+/// - ck:       128bit  confidentiality key
+/// - iv:       128bit  initial vector
+/// - length:       32bit   bit length of plaintext information stream
+/// - ibs:          &[u8]   input bitstream
+///
+/// # output:
+/// - Vec<u8>:  encrypted bit stream
 fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
     let l = (length + 31) / 32;
 
@@ -36,6 +46,19 @@ fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
     res
 }
 
+/// eea3-128 privacy algorithm (3GPP LTE)
+/// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
+///
+/// # Input:
+/// - count:        32bit   counter
+/// - bearer:       8bit    carrier layer identification
+/// - direction:    1bit    transmission direction identification
+/// - ck:           128bit  confidentiality key
+/// - length:       32bit   bit length of plaintext information stream
+/// - ibs:          &[u8]   input bitstream
+///
+/// # output:
+/// - Vec<u8>:  encrypted bit stream
 fn eea3_128(count: u32, bearer: u32, direction: u32, ck: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
     // init
     let bearer = bearer as u8 & ((1 << 6) - 1);
