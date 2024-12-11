@@ -2,7 +2,6 @@
 //! ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
 
 use crate::ZUC128;
-use std::ops::BitXor;
 
 /// zuc xor encryption algorithm
 /// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
@@ -15,6 +14,8 @@ use std::ops::BitXor;
 ///
 /// # output:
 /// - Vec<u8>:  encrypted bit stream
+#[must_use]
+#[allow(clippy::needless_range_loop)]
 #[allow(clippy::cast_possible_truncation)]
 pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
     let l = (length + 31) / 32;
@@ -55,6 +56,7 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
 ///
 /// # output:
 /// - Vec<u8>:  encrypted bit stream
+#[must_use]
 #[allow(clippy::cast_possible_truncation)]
 pub fn eea3_128(
     count: u32,
