@@ -54,13 +54,8 @@ pub static D_256: [u8; 16] = [
 // }
 
 /// concat u8 bits to 31bit u32
-fn concat_bits(parts: &[u8]) -> u32 {
-    let mut result: u32 = 0;
-    for (i, &part) in parts.iter().enumerate() {
-        let width = if i == 1 { 7 } else { 8 }; // 判断是 7 位 (D) 还是 8 位 (K/IV)
-        result = (result << width) | u32::from(part);
-    }
-    result & 0x7FFF_FFFF // 确保结果为 31 位
+fn concat_bits(a: u8, b: u8, c: u8, d: u8) -> u32 {
+    (u32::from(a) << 23) | (u32::from(b & 0x7F) << 16) | (u32::from(c) << 8) | u32::from(d)
 }
 
 /// ZUC256 keystream generator
@@ -77,22 +72,22 @@ impl Zuc256 {
     pub fn new(k: &[u8; 32], iv: &[u8; 25]) -> Self {
         let mut zuc = Zuc::zeroed();
         let d = D_256;
-        zuc.s[0] = concat_bits(&[k[0], d[0], k[21], k[16]]);
-        zuc.s[1] = concat_bits(&[k[1], d[1], k[22], k[17]]);
-        zuc.s[2] = concat_bits(&[k[2], d[2], k[23], k[18]]);
-        zuc.s[3] = concat_bits(&[k[3], d[3], k[24], k[19]]);
-        zuc.s[4] = concat_bits(&[k[4], d[4], k[25], k[20]]);
-        zuc.s[5] = concat_bits(&[iv[0], (d[5] | iv[17]), k[5], k[26]]);
-        zuc.s[6] = concat_bits(&[iv[1], (d[6] | iv[18]), k[6], k[27]]);
-        zuc.s[7] = concat_bits(&[iv[10], (d[7] | iv[19]), k[7], iv[2]]);
-        zuc.s[8] = concat_bits(&[k[8], (d[8] | iv[20]), iv[3], iv[11]]);
-        zuc.s[9] = concat_bits(&[k[9], (d[9] | iv[21]), iv[12], iv[4]]);
-        zuc.s[10] = concat_bits(&[iv[5], (d[10] | iv[22]), k[10], k[28]]);
-        zuc.s[11] = concat_bits(&[k[11], (d[11] | iv[23]), iv[6], iv[13]]);
-        zuc.s[12] = concat_bits(&[k[12], (d[12] | iv[24]), iv[7], iv[14]]);
-        zuc.s[13] = concat_bits(&[k[13], d[13], iv[15], iv[8]]);
-        zuc.s[14] = concat_bits(&[k[14], (d[14] | (k[31] >> 4)), iv[16], iv[9]]);
-        zuc.s[15] = concat_bits(&[k[15], (d[15] | (k[31] & 0b_1111)), k[30], k[29]]);
+        zuc.s[0] = concat_bits(k[0], d[0], k[21], k[16]);
+        zuc.s[1] = concat_bits(k[1], d[1], k[22], k[17]);
+        zuc.s[2] = concat_bits(k[2], d[2], k[23], k[18]);
+        zuc.s[3] = concat_bits(k[3], d[3], k[24], k[19]);
+        zuc.s[4] = concat_bits(k[4], d[4], k[25], k[20]);
+        zuc.s[5] = concat_bits(iv[0], d[5] | iv[17], k[5], k[26]);
+        zuc.s[6] = concat_bits(iv[1], d[6] | iv[18], k[6], k[27]);
+        zuc.s[7] = concat_bits(iv[10], d[7] | iv[19], k[7], iv[2]);
+        zuc.s[8] = concat_bits(k[8], d[8] | iv[20], iv[3], iv[11]);
+        zuc.s[9] = concat_bits(k[9], d[9] | iv[21], iv[12], iv[4]);
+        zuc.s[10] = concat_bits(iv[5], d[10] | iv[22], k[10], k[28]);
+        zuc.s[11] = concat_bits(k[11], d[11] | iv[23], iv[6], iv[13]);
+        zuc.s[12] = concat_bits(k[12], d[12] | iv[24], iv[7], iv[14]);
+        zuc.s[13] = concat_bits(k[13], d[13], iv[15], iv[8]);
+        zuc.s[14] = concat_bits(k[14], d[14] | (k[31] >> 4), iv[16], iv[9]);
+        zuc.s[15] = concat_bits(k[15], d[15] | (k[31] & 0b_1111), k[30], k[29]);
         zuc.init();
         Self { core: zuc }
     }
