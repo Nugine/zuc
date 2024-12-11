@@ -19,16 +19,12 @@
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-/// zuc algorithms module
 mod zuc;
 
-/// zuc 128 bit
 mod zuc128;
 pub use self::zuc128::Zuc128;
 
-/// zuc 256bit
 mod zuc256;
 pub use self::zuc256::{MacLength, Zuc256};
 
-/// utils for bit calculate
 mod utils;

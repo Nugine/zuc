@@ -1,3 +1,5 @@
+//! Utilities
+
 /// (a + b) mod (2^32)
 #[inline(always)]
 pub fn add(a: u32, b: u32) -> u32 {

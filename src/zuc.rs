@@ -1,4 +1,5 @@
-// src/zuc.rs
+//! ZUC shared implementation
+
 use super::utils::{add, add_m31, mul_m31, rol};
 use std::mem;
 
