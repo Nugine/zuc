@@ -24,3 +24,4 @@ mod eea3_128;
 mod zuc128;
 
 pub use self::zuc128::ZUC128;
+pub use eea3_128::{eea3_128, encryption_xor};

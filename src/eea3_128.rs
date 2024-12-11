@@ -30,11 +30,12 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
         })
         .collect::<Vec<u8>>();
 
-    keys.truncate(length as usize / 8 + 1);
     if length % 8 != 0 {
         keys[length as usize / 8] &= 0xFF << (8 - length % 8);
     }
-    keys.extend(std::iter::repeat(0x0).take(ibs.len() - keys.len()));
+    for i in length as usize / 8 + 1..keys.len() {
+        keys[i] = 0x0;
+    }
 
     let mut res = ibs.to_vec();
     res.iter_mut().zip(keys.iter()).for_each(|(ib, k)| *ib ^= k);
