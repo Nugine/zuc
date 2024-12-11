@@ -55,7 +55,14 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
 /// # output:
 /// - Vec<u8>:  encrypted bit stream
 #[allow(clippy::cast_possible_truncation)]
-pub fn eea3_128(count: u32, bearer: u32, direction: u32, ck: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
+pub fn eea3_128(
+    count: u32,
+    bearer: u32,
+    direction: u32,
+    ck: u128,
+    length: u32,
+    ibs: &[u8],
+) -> Vec<u8> {
     // init
     let bearer = bearer as u8 & ((1 << 6) - 1);
     let direction = direction as u8 & 0x1;
@@ -77,10 +84,10 @@ pub fn eea3_128(count: u32, bearer: u32, direction: u32, ck: u128, length: u32, 
 mod tests {
     use crate::eea3_128::eea3_128;
 
+    /// 3GPP LTE Example 1
+    /// FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
     #[test]
     fn test_1() {
-        // 3GPP LTE Example 1
-        // FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
         let ck = 0x17_3d_14_ba_50_03_73_1d_7a_60_04_94_70_f0_0a_29;
         let count = 0x66035492;
         let bearer = 0xf;
@@ -101,10 +108,10 @@ mod tests {
         )
     }
 
+    /// 3GPP LTE Example 2
+    /// FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
     #[test]
     fn test_2() {
-        // 3GPP LTE Example 2
-        // FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
         let ck: u128 = 0xe5_bd_3e_a0_eb_55_ad_e8_66_c6_ac_58_bd_54_30_2a;
         let count = 0x56823;
         let bearer = 0x18;
@@ -134,10 +141,10 @@ mod tests {
         assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), &obs);
     }
 
+    /// 3GPP LTE Example 3
+    /// FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
     #[test]
     fn test_3() {
-        // 3GPP LTE Example 3
-        // FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
         let ck = u128::from_be_bytes([
             0xe1, 0x3f, 0xed, 0x21, 0xb4, 0x6e, 0x4e, 0x7e, 0xc3, 0x12, 0x53, 0xb2, 0xbb, 0x17,
             0xb3, 0xe0,
@@ -185,6 +192,102 @@ mod tests {
             0x9bdd02f0, 0xd2a5221c, 0xa508f893, 0xaf5c4b4b, 0xb9f4f520, 0xfd84289b, 0x3dbe7e61,
             0x497a7e2a, 0x584037ea, 0x637b6981, 0x127174af, 0x57b471df, 0x4b2768fd, 0x79c1540f,
             0xb3edf2ea, 0x22cb69be, 0xc0cf8d93, 0x3d9c6fdd, 0x645e8505, 0x91cca3d6, 0x2c0cc000,
+        ];
+        let ibs = ibs
+            .iter()
+            .flat_map(|&word| word.to_be_bytes())
+            .collect::<Vec<u8>>();
+        let obs = obs
+            .iter()
+            .flat_map(|&word| word.to_be_bytes())
+            .collect::<Vec<u8>>();
+        assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), obs);
+    }
+
+    /// Test Set 3 from gsma
+    /// https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
+    #[test]
+    fn test_set_3_from_gmssl() {
+        let ck = u128::from_be_bytes([
+            0xd4, 0x55, 0x2a, 0x8f, 0xd6, 0xe6, 0x1c, 0xc8, 0x1a, 0x20, 0x09, 0x14, 0x1a, 0x29,
+            0xc1, 0x0b,
+        ]);
+        let count = 0x76452ec1;
+        let bearer = 0x2;
+        let direction = 0x1;
+        let length = 1570;
+        let ibs: [u32; 50] = [
+            0x38f07f4b, 0xe2d8ff58, 0x05f51322, 0x29bde93b, 0xbbdcaf38, 0x2bf1ee97, 0x2fbf9977,
+            0xbada8945, 0x847a2a6c, 0x9ad34a66, 0x7554e04d, 0x1f7fa2c3, 0x3241bd8f, 0x01ba220d,
+            0x3ca4ec41, 0xe074595f, 0x54ae2b45, 0x4fd97143, 0x20436019, 0x65cca85c, 0x2417ed6c,
+            0xbec3bada, 0x84fc8a57, 0x9aea7837, 0xb0271177, 0x242a64dc, 0x0a9de71a, 0x8edee86c,
+            0xa3d47d03, 0x3d6bf539, 0x804eca86, 0xc584a905, 0x2de46ad3, 0xfced6554, 0x3bd90207,
+            0x372b27af, 0xb79234f5, 0xff43ea87, 0x0820e2c2, 0xb78a8aae, 0x61cce52a, 0x0515e348,
+            0xd196664a, 0x3456b182, 0xa07c406e, 0x4a207912, 0x71cfeda1, 0x65d535ec, 0x5ea2d4df,
+            0x40000000,
+        ];
+        let obs: [u32; 50] = [
+            0x8383b022, 0x9fcc0b9d, 0x2295ec41, 0xc977e9c2, 0xbb72e220, 0x378141f9, 0xc8318f3a,
+            0x270dfbcd, 0xee6411c2, 0xb3044f17, 0x6dc6e00f, 0x8960f97a, 0xfacd131a, 0xd6a3b49b,
+            0x16b7babc, 0xf2a509eb, 0xb16a75dc, 0xab14ff27, 0x5dbeeea1, 0xa2b155f9, 0xd52c2645,
+            0x2d0187c3, 0x10a4ee55, 0xbeaa78ab, 0x4024615b, 0xa9f5d5ad, 0xc7728f73, 0x560671f0,
+            0x13e5e550, 0x085d3291, 0xdf7d5fec, 0xedded559, 0x641b6c2f, 0x585233bc, 0x71e9602b,
+            0xd2305855, 0xbbd25ffa, 0x7f17ecbc, 0x042daae3, 0x8c1f57ad, 0x8e8ebd37, 0x346f71be,
+            0xfdbb7432, 0xe0e0bb2c, 0xfc09bcd9, 0x6570cb0c, 0x0c39df5e, 0x29294e82, 0x703a637f,
+            0x80000000,
+        ];
+        let ibs = ibs
+            .iter()
+            .flat_map(|&word| word.to_be_bytes())
+            .collect::<Vec<u8>>();
+        let obs = obs
+            .iter()
+            .flat_map(|&word| word.to_be_bytes())
+            .collect::<Vec<u8>>();
+        assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), obs);
+    }
+
+    /// Test Set 3 from gsma
+    /// https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
+    #[test]
+    fn test_set_4_from_gmssl() {
+        let ck = u128::from_be_bytes([
+            0xdb, 0x84, 0xb4, 0xfb, 0xcc, 0xda, 0x56, 0x3b, 0x66, 0x22, 0x7b, 0xfe, 0x45, 0x6f,
+            0x0f, 0x77,
+        ]);
+        let count = 0xe4850fe1;
+        let bearer = 0x10;
+        let direction = 0x1;
+        let length = 2798;
+        let ibs: [u32; 88] = [
+            0xe539f3b8, 0x973240da, 0x03f2b8aa, 0x05ee0a00, 0xdbafc0e1, 0x82055dfe, 0x3d7383d9,
+            0x2cef40e9, 0x2928605d, 0x52d05f4f, 0x9018a1f1, 0x89ae3997, 0xce19155f, 0xb1221db8,
+            0xbb0951a8, 0x53ad852c, 0xe16cff07, 0x382c93a1, 0x57de00dd, 0xb125c753, 0x9fd85045,
+            0xe4ee07e0, 0xc43f9e9d, 0x6f414fc4, 0xd1c62917, 0x813f74c0, 0x0fc83f3e, 0x2ed7c45b,
+            0xa5835264, 0xb43e0b20, 0xafda6b30, 0x53bfb642, 0x3b7fce25, 0x479ff5f1, 0x39dd9b5b,
+            0x995558e2, 0xa56be18d, 0xd581cd01, 0x7c735e6f, 0x0d0d97c4, 0xddc1d1da, 0x70c6db4a,
+            0x12cc9277, 0x8e2fbbd6, 0xf3ba52af, 0x91c9c6b6, 0x4e8da4f7, 0xa2c266d0, 0x2d001753,
+            0xdf089603, 0x93c5d568, 0x88bf49eb, 0x5c16d9a8, 0x0427a416, 0xbcb597df, 0x5bfe6f13,
+            0x890a07ee, 0x1340e647, 0x6b0d9aa8, 0xf822ab0f, 0xd1ab0d20, 0x4f40b7ce, 0x6f2e136e,
+            0xb67485e5, 0x07804d50, 0x4588ad37, 0xffd81656, 0x8b2dc403, 0x11dfb654, 0xcdead47e,
+            0x2385c343, 0x6203dd83, 0x6f9c64d9, 0x7462ad5d, 0xfa63b5cf, 0xe08acb95, 0x32866f5c,
+            0xa787566f, 0xca93e6b1, 0x693ee15c, 0xf6f7a2d6, 0x89d97417, 0x98dc1c23, 0x8e1be650,
+            0x733b18fb, 0x34ff880e, 0x16bbd21b, 0x47ac0000,
+        ];
+        let obs: [u32; 88] = [
+            0x4bbfa91b, 0xa25d47db, 0x9a9f190d, 0x962a19ab, 0x323926b3, 0x51fbd39e, 0x351e05da,
+            0x8b8925e3, 0x0b1cce0d, 0x12211010, 0x95815cc7, 0xcb631950, 0x9ec0d679, 0x40491987,
+            0xe13f0aff, 0xac332aa6, 0xaa64626d, 0x3e9a1917, 0x519e0b97, 0xb655c6a1, 0x65e44ca9,
+            0xfeac0790, 0xd2a321ad, 0x3d86b79c, 0x5138739f, 0xa38d887e, 0xc7def449, 0xce8abdd3,
+            0xe7f8dc4c, 0xa9e7b733, 0x14ad310f, 0x9025e619, 0x46b3a56d, 0xc649ec0d, 0xa0d63943,
+            0xdff592cf, 0x962a7efb, 0x2c8524e3, 0x5a2a6e78, 0x79d62604, 0xef268695, 0xfa400302,
+            0x7e22e608, 0x30775220, 0x64bd4a5b, 0x906b5f53, 0x1274f235, 0xed506cff, 0x0154c754,
+            0x928a0ce5, 0x476f2cb1, 0x020a1222, 0xd32c1455, 0xecaef1e3, 0x68fb344d, 0x1735bfbe,
+            0xdeb71d0a, 0x33a2a54b, 0x1da5a294, 0xe679144d, 0xdf11eb1a, 0x3de8cf0c, 0xc0619179,
+            0x74f35c1d, 0x9ca0ac81, 0x807f8fcc, 0xe6199a6c, 0x7712da86, 0x5021b04c, 0xe0439516,
+            0xf1a526cc, 0xda9fd9ab, 0xbd53c3a6, 0x84f9ae1e, 0x7ee6b11d, 0xa138ea82, 0x6c5516b5,
+            0xaadf1abb, 0xe36fa7ff, 0xf92e3a11, 0x76064e8d, 0x95f2e488, 0x2b5500b9, 0x3228b219,
+            0x4a475c1a, 0x27f63f9f, 0xfd264989, 0xa1bc0000,
         ];
         let ibs = ibs
             .iter()
