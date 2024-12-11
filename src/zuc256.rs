@@ -55,7 +55,7 @@ pub static D_256: [u8; 16] = [
 
 /// concat u8 bits to 31bit u32
 fn concat_bits(a: u8, b: u8, c: u8, d: u8) -> u32 {
-    (u32::from(a) << 23) | (u32::from(b & 0x7F) << 16) | (u32::from(c) << 8) | u32::from(d)
+    (u32::from(a) << 23) | (u32::from(b) << 16) | (u32::from(c) << 8) | u32::from(d)
 }
 
 /// ZUC256 keystream generator
@@ -69,22 +69,33 @@ pub struct Zuc256 {
 impl Zuc256 {
     /// Creates a ZUC256 keystream generator
     #[must_use]
-    pub fn new(k: &[u8; 32], iv: &[u8; 25]) -> Self {
+    pub fn new(k: &[u8; 32], iv: &[u8; 23]) -> Self {
         let mut zuc = Zuc::zeroed();
         let d = D_256;
+
+        // extend from 184bit iv[0..=22] (u8*23) to iv[0..=24](8bit*17 + 6bit *8)
+        let iv17: u8 = iv[17] >> 2;
+        let iv18: u8 = ((iv[17] & 0x3) << 4) | (iv[18] >> 4);
+        let iv19: u8 = ((iv[18] & 0xf) << 2) | (iv[19] >> 6);
+        let iv20: u8 = iv[19] & 0x3f;
+        let iv21: u8 = iv[20] >> 2;
+        let iv22: u8 = ((iv[20] & 0x3) << 4) | (iv[21] >> 4);
+        let iv23: u8 = ((iv[21] & 0xf) << 2) | (iv[22] >> 6);
+        let iv24: u8 = iv[22] & 0x3f;
+
         zuc.s[0] = concat_bits(k[0], d[0], k[21], k[16]);
         zuc.s[1] = concat_bits(k[1], d[1], k[22], k[17]);
         zuc.s[2] = concat_bits(k[2], d[2], k[23], k[18]);
         zuc.s[3] = concat_bits(k[3], d[3], k[24], k[19]);
         zuc.s[4] = concat_bits(k[4], d[4], k[25], k[20]);
-        zuc.s[5] = concat_bits(iv[0], d[5] | iv[17], k[5], k[26]);
-        zuc.s[6] = concat_bits(iv[1], d[6] | iv[18], k[6], k[27]);
-        zuc.s[7] = concat_bits(iv[10], d[7] | iv[19], k[7], iv[2]);
-        zuc.s[8] = concat_bits(k[8], d[8] | iv[20], iv[3], iv[11]);
-        zuc.s[9] = concat_bits(k[9], d[9] | iv[21], iv[12], iv[4]);
-        zuc.s[10] = concat_bits(iv[5], d[10] | iv[22], k[10], k[28]);
-        zuc.s[11] = concat_bits(k[11], d[11] | iv[23], iv[6], iv[13]);
-        zuc.s[12] = concat_bits(k[12], d[12] | iv[24], iv[7], iv[14]);
+        zuc.s[5] = concat_bits(iv[0], d[5] | iv17, k[5], k[26]);
+        zuc.s[6] = concat_bits(iv[1], d[6] | iv18, k[6], k[27]);
+        zuc.s[7] = concat_bits(iv[10], d[7] | iv19, k[7], iv[2]);
+        zuc.s[8] = concat_bits(k[8], d[8] | iv20, iv[3], iv[11]);
+        zuc.s[9] = concat_bits(k[9], d[9] | iv21, iv[12], iv[4]);
+        zuc.s[10] = concat_bits(iv[5], d[10] | iv22, k[10], k[28]);
+        zuc.s[11] = concat_bits(k[11], d[11] | iv23, iv[6], iv[13]);
+        zuc.s[12] = concat_bits(k[12], d[12] | iv24, iv[7], iv[14]);
         zuc.s[13] = concat_bits(k[13], d[13], iv[15], iv[8]);
         zuc.s[14] = concat_bits(k[14], d[14] | (k[31] >> 4), iv[16], iv[9]);
         zuc.s[15] = concat_bits(k[15], d[15] | (k[31] & 0b_1111), k[30], k[29]);
@@ -114,13 +125,13 @@ mod tests {
     // examples from http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf
     struct Example {
         k: [u8; 32],
-        iv: [u8; 25],
+        iv: [u8; 23],
         expected: [u32; 20],
     }
 
     static EXAMPLE1: Example = Example {
         k: [0; 32],
-        iv: [0; 25],
+        iv: [0; 23],
         expected: [
             0x58d0_3ad6,
             0x2e03_2ce2,
@@ -147,7 +158,7 @@ mod tests {
 
     static EXAMPLE2: Example = Example {
         k: [0xff; 32],
-        iv: [0xff; 25],
+        iv: [0xff; 23],
         expected: [
             0x3356_cbae,
             0xd1a1_c18b,
