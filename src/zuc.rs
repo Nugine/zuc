@@ -100,6 +100,7 @@ impl Zuc {
         }
         self.generate();
     }
+
     /// `BitReconstruction` function
     fn bit_reconstruction(&mut self) {
         let Self { s, x, .. } = self;

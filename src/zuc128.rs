@@ -2,7 +2,7 @@
 
 use crate::zuc::Zuc;
 
-/// d constants 128
+/// d constants
 pub static D_128: [u16; 16] = [
     0b_0100_0100_1101_0111,
     0b_0010_0110_1011_1100,
