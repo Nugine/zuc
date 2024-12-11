@@ -1,4 +1,4 @@
-# Zuc
+# ZUC
 
 [![Latest Version]][crates.io]
 [![Documentation]][docs.rs] 
@@ -13,7 +13,7 @@
 Documentation: <https://docs.rs/zuc>
 
 ## References
-- **Zuc 128**:[GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=8C41A3AEECCA52B5C0011C8010CF0715)
-- **Zuc 256**:[Zuc256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf)
-- **Zuc 256 Addendum**:[Zuc256-addendum](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020220926381349696866.pdf)
-- **Zuc 256 New Initialization**:[Zuc256-new-initialization](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020230201389233346416.pdf)
+- **ZUC 128**: [GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=8C41A3AEECCA52B5C0011C8010CF0715)
+- **ZUC 256**: [Zuc256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf)
+- **ZUC 256 Addendum**: [Zuc256-addendum](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020220926381349696866.pdf)
+- **ZUC 256 New Initialization**: [Zuc256-new-initialization](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020230201389233346416.pdf)
