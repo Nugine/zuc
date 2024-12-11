@@ -1,10 +1,10 @@
 //! ZUC Confidentiality Algorithm
-//! ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
+//! ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
 
 use crate::ZUC128;
 
 /// zuc xor encryption algorithm
-/// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
+/// ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
 ///
 /// # input:
 /// - ck:       128bit  confidentiality key
@@ -44,7 +44,7 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
 }
 
 /// eea3-128 privacy algorithm (3GPP LTE)
-/// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
+/// ([GB/T 33133.2-2021](https://www.gsma.com/about-us/wp-content/uploads/2014/12/eea3eia3zucv16.pdf))
 ///
 /// # Input:
 /// - count:        32bit   counter
@@ -77,8 +77,8 @@ pub fn eea3_128(
     iv[3] = count as u8;
     iv[4] = bearer << 3 | direction << 2;
     iv[5..=7].fill(0x0);
-    let tmp = &iv[0..8].to_vec();
-    iv[8..16].copy_from_slice(tmp);
+    let (left, right) = iv.split_at_mut(8);
+    right.copy_from_slice(left);
 
     encryption_xor(ck, u128::from_ne_bytes(iv), length, ibs)
 }
@@ -89,6 +89,7 @@ mod tests {
 
     /// 3GPP LTE Example 1
     /// FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
+    /// FROM https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
     #[test]
     fn test_1() {
         let ck = 0x17_3d_14_ba_50_03_73_1d_7a_60_04_94_70_f0_0a_29;
@@ -113,6 +114,7 @@ mod tests {
 
     /// 3GPP LTE Example 2
     /// FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
+    /// FROM https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
     #[test]
     fn test_2() {
         let ck: u128 = 0xe5_bd_3e_a0_eb_55_ad_e8_66_c6_ac_58_bd_54_30_2a;
@@ -146,6 +148,7 @@ mod tests {
 
     /// 3GPP LTE Example 3
     /// FROM https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3
+    /// FROM https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
     #[test]
     fn test_3() {
         let ck = u128::from_be_bytes([
@@ -208,9 +211,9 @@ mod tests {
     }
 
     /// Test Set 3 from gsma
-    /// https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
+    /// FROM https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
     #[test]
-    fn test_set_3_from_gmssl() {
+    fn test_set_3_from_gsma() {
         let ck = u128::from_be_bytes([
             0xd4, 0x55, 0x2a, 0x8f, 0xd6, 0xe6, 0x1c, 0xc8, 0x1a, 0x20, 0x09, 0x14, 0x1a, 0x29,
             0xc1, 0x0b,
@@ -250,10 +253,10 @@ mod tests {
         assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), obs);
     }
 
-    /// Test Set 3 from gsma
-    /// https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
+    /// Test Set 4 from gsma
+    /// FROM https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf
     #[test]
-    fn test_set_4_from_gmssl() {
+    fn test_set_4_from_gsma() {
         let ck = u128::from_be_bytes([
             0xdb, 0x84, 0xb4, 0xfb, 0xcc, 0xda, 0x56, 0x3b, 0x66, 0x22, 0x7b, 0xfe, 0x45, 0x6f,
             0x0f, 0x77,
