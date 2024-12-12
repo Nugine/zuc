@@ -45,7 +45,7 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
 }
 
 /// eea3-128 privacy algorithm (3GPP LTE)
-/// ([GB/T 33133.2-2021](https://www.gsma.com/about-us/wp-content/uploads/2014/12/eea3eia3zucv16.pdf))
+/// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
 ///
 /// # Input:
 /// - count:        32bit   counter
