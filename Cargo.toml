@@ -16,3 +16,4 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 const-str = "0.5.7"
+
