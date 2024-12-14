@@ -9,8 +9,8 @@ use crate::ZUC128;
 /// # input:
 /// - ck:       128bit  confidentiality key
 /// - iv:       128bit  initial vector
-/// - length:       32bit   bit length of plaintext information stream
-/// - ibs:          &[u8]   input bitstream
+/// - length:   32bit   bit length of plaintext information stream
+/// - ibs:      &[u8]   input bitstream
 ///
 /// # output:
 /// - Vec<u8>:  encrypted bit stream
@@ -49,7 +49,7 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
 ///
 /// # Input:
 /// - count:        32bit   counter
-/// - bearer:       8bit    carrier layer identification
+/// - bearer:       5bit    carrier layer identification
 /// - direction:    1bit    transmission direction identification
 /// - ck:           128bit  confidentiality key
 /// - length:       32bit   bit length of plaintext information stream
@@ -61,15 +61,15 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
 #[allow(clippy::cast_possible_truncation)]
 pub fn eea3_128(
     count: u32,
-    bearer: u32,
-    direction: u32,
+    bearer: u8,
+    direction: u8,
     ck: u128,
     length: u32,
     ibs: &[u8],
 ) -> Vec<u8> {
     // init
-    let bearer = bearer as u8 & ((1 << 6) - 1);
-    let direction = direction as u8 & 0x1;
+    let bearer = bearer & ((1 << 6) - 1);
+    let direction = direction & 0x1;
 
     let mut iv = [0_u8; 16];
     iv[0] = (count >> 24) as u8;
