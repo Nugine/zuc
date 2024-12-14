@@ -23,14 +23,24 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
     let ck = ck.to_be_bytes();
     let iv = iv.to_ne_bytes();
 
+    for item in ibs {
+        print!("{item:x} ");
+    }
+    println!();
+
     let mut zuc = ZUC128::new(&ck, &iv);
-    let mut res = (0..l)
-        .flat_map(|_| {
-            let z = zuc.generate().to_be();
-            [z as u8, (z >> 8) as u8, (z >> 16) as u8, (z >> 24) as u8]
-        })
+    let mut res = ibs.to_vec();
+    let mut keys = zuc.generate().to_be();
+
+    res.iter_mut()
         .enumerate()
-        .map(|(i, byte)| byte ^ ibs[i])
+        .map(|(i, byte)| {
+            *byte ^= (keys >> ((i % 4) * 8)) as u8;
+            if i % 4 == 3 {
+                keys = zuc.generate().to_be();
+            }
+            *byte
+        })
         .collect::<Vec<u8>>();
 
     if length % 8 != 0 {
