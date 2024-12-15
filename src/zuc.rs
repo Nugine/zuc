@@ -1,10 +1,9 @@
 //! ZUC shared implementation
 
-use super::utils::{add, add_m31, mul_m31, rol};
-use std::mem;
+use crate::utils::{add, rol};
 
 /// S0 box
-pub static S0: [u8; 256] = const_str::hex!([
+static S0: [u8; 256] = const_str::hex!([
     "3E 72 5B 47 CA E0 00 33 04 D1 54 98 09 B9 6D CB",
     "7B 1B F9 32 AF 9D 6A A5 B8 2D FC 1D 08 53 03 90",
     "4D 4E 84 99 E4 CE D9 91 DD B6 85 48 8B 29 6E AC",
@@ -24,7 +23,7 @@ pub static S0: [u8; 256] = const_str::hex!([
 ]);
 
 /// S1 box
-pub static S1: [u8; 256] = const_str::hex!([
+static S1: [u8; 256] = const_str::hex!([
     "55 C2 63 71 3B C8 47 86 9F 3C DA 5B 29 AA FD 77",
     "8C C5 94 0C A6 1A 13 00 E3 A8 16 72 40 F9 F8 42",
     "44 26 68 96 81 D9 45 3E 10 76 C6 A7 8B 39 43 E1",
@@ -45,13 +44,13 @@ pub static S1: [u8; 256] = const_str::hex!([
 
 /// L1 linear transform
 #[inline(always)]
-pub fn l1(x: u32) -> u32 {
+fn l1(x: u32) -> u32 {
     x ^ rol(x, 2) ^ rol(x, 10) ^ rol(x, 18) ^ rol(x, 24)
 }
 
 /// L2 linear transform
 #[inline(always)]
-pub fn l2(x: u32) -> u32 {
+fn l2(x: u32) -> u32 {
     x ^ rol(x, 8) ^ rol(x, 14) ^ rol(x, 22) ^ rol(x, 30)
 }
 
@@ -70,49 +69,54 @@ fn sbox(x: u32) -> u32 {
 
 /// ZUC keystream generator
 #[derive(Clone, Debug)]
-pub struct Zuc {
+pub(crate) struct Zuc {
     /// LFSR registers (31-bit words x16)
-    pub(crate) s: [u32; 16],
+    pub s: [u32; 16],
 
     /// R1 state unit (32 bits)
-    pub(crate) r1: u32,
+    pub r1: u32,
 
     /// R2 state unit (32 bits)
-    pub(crate) r2: u32,
-
-    /// X buffer
-    pub(crate) x: [u32; 4],
+    pub r2: u32,
 }
 
 impl Zuc {
     /// Zero-initialized
-    #[allow(unsafe_code)]
     pub fn zeroed() -> Self {
-        unsafe { mem::zeroed() }
+        Self {
+            s: [0; 16],
+            r1: 0,
+            r2: 0,
+        }
     }
 
     /// Creates a ZUC128 keystream generator
     pub fn init(&mut self) {
         for _ in 0..32 {
-            self.bit_reconstruction();
-            let w = self.f();
+            let x = self.bit_reconstruction();
+            let w = self.f(x);
             self.lfsr_with_initialization_mode(w >> 1);
         }
-        self.generate();
+
+        {
+            let x = self.bit_reconstruction();
+            self.f(x);
+        }
     }
 
     /// `BitReconstruction` function
-    fn bit_reconstruction(&mut self) {
-        let Self { s, x, .. } = self;
-        x[0] = ((s[15] & 0x7FFF_8000) << 1) | (s[14] & 0xFFFF);
-        x[1] = ((s[11] & 0xFFFF) << 16) | (s[9] >> 15);
-        x[2] = ((s[7] & 0xFFFF) << 16) | (s[5] >> 15);
-        x[3] = ((s[2] & 0xFFFF) << 16) | (s[0] >> 15);
+    fn bit_reconstruction(&mut self) -> [u32; 4] {
+        let Self { s, .. } = self;
+        let x0 = ((s[15] & 0x7FFF_8000) << 1) | (s[14] & 0xFFFF);
+        let x1 = ((s[11] & 0xFFFF) << 16) | (s[9] >> 15);
+        let x2 = ((s[7] & 0xFFFF) << 16) | (s[5] >> 15);
+        let x3 = ((s[2] & 0xFFFF) << 16) | (s[0] >> 15);
+        [x0, x1, x2, x3]
     }
 
     /// F non-linear function
-    fn f(&mut self) -> u32 {
-        let Self { x, r1, r2, .. } = self;
+    fn f(&mut self, x: [u32; 4]) -> u32 {
+        let Self { r1, r2, .. } = self;
 
         let w = add(x[0] ^ (*r1), *r2);
         let w1 = add(*r1, x[1]);
@@ -124,20 +128,56 @@ impl Zuc {
     }
 
     /// `LFSRWithInitialisationMode` function
+    #[allow(clippy::cast_possible_truncation)]
     fn lfsr_with_initialization_mode(&mut self, u: u32) {
         let Self { s, .. } = self;
-        let v = {
-            let v1 = mul_m31(1 << 15, s[15]);
-            let v2 = mul_m31(1 << 17, s[13]);
-            let v3 = mul_m31(1 << 21, s[10]);
-            let v4 = mul_m31(1 << 20, s[4]);
-            let v5 = mul_m31((1 << 8) + 1, s[0]);
-            add_m31(v1, add_m31(v2, add_m31(v3, add_m31(v4, v5))))
+
+        // standard:
+        // v = (2^15 * s[15] + 2^17 * s[13] + 2^21 * s[10] + 2^20 * s[4] + (1+2^8) * s[0]) mod (2^31 - 1)
+        // s[16] = (v + u) mod (2^31 - 1)
+        // if s[16] == 0 { s[16] = 2^31 - 1 }
+        //
+        // equivalent to:
+        // NOTE: s[i] is a 31-bit word
+        // sum = 2^15 * s[15] + 2^17 * s[13] + 2^21 * s[10] + 2^20 * s[4] + (1+2^8) * s[0] + u
+        // NOTE: sum <= 2^53 - 1
+        //
+        // NOTE: (2^31) * x + y ≡ x + y (mod (2^31 - 1))
+        // sum = (sum >> 31) + (sum % (1<<31))
+        // NOTE: sum <= (2^22 - 1) + (2^31 - 1) <= (2^32 - 2)
+        //
+        // sum = (sum >> 31) + (sum % (1<<31))
+        // NOTE: sum <= 0 + (2^31 - 1)
+        //       sum <= 1 + (2^31 - 2)
+        //       sum <= 2^31 - 1
+        //
+        // if sum == 2^31 - 1 {
+        //     (v + u) mod (2^31 - 1) == 0
+        //     s[16] = sum = 2^31 - 1
+        // } else {
+        //     (v + u) mod (2^31 - 1) == sum
+        //     s[16] = sum
+        // }
+        //
+        // equivalent to:
+        // s[16] = sum
+
+        let s16 = {
+            let mut sum = u64::from(u);
+            sum += u64::from(s[0]);
+            sum += u64::from(s[0]) << 8;
+            sum += u64::from(s[4]) << 20;
+            sum += u64::from(s[10]) << 21;
+            sum += u64::from(s[13]) << 17;
+            sum += u64::from(s[15]) << 15;
+
+            sum = (sum >> 31) + (sum & ((1 << 31) - 1));
+            let mut sum = sum as u32;
+            sum = (sum >> 31) + (sum & ((1 << 31) - 1));
+
+            sum
         };
-        let mut s16 = add_m31(v, u);
-        if s16 == 0 {
-            s16 = (1 << 31) - 1;
-        }
+
         for i in 0..15 {
             s[i] = s[i + 1];
         }
@@ -145,31 +185,14 @@ impl Zuc {
     }
 
     /// `LFSRWithWorkMode` function
-    fn lfsr_with_work_mode(&mut self) {
-        let Self { s, .. } = self;
-        let v = {
-            let v1 = mul_m31(1 << 15, s[15]);
-            let v2 = mul_m31(1 << 17, s[13]);
-            let v3 = mul_m31(1 << 21, s[10]);
-            let v4 = mul_m31(1 << 20, s[4]);
-            let v5 = mul_m31((1 << 8) + 1, s[0]);
-            add_m31(v1, add_m31(v2, add_m31(v3, add_m31(v4, v5))))
-        };
-        let mut s16 = v;
-        if s16 == 0 {
-            s16 = (1 << 31) - 1;
-        }
-        for i in 0..15 {
-            s[i] = s[i + 1];
-        }
-        s[15] = s16;
+    pub fn lfsr_with_work_mode(&mut self) {
+        self.lfsr_with_initialization_mode(0);
     }
 
     /// Generates the next 32-bit word in ZUC128 keystream
     pub fn generate(&mut self) -> u32 {
-        self.bit_reconstruction();
-        let z = self.f() ^ self.x[3];
         self.lfsr_with_work_mode();
-        z
+        let x = self.bit_reconstruction();
+        self.f(x) ^ x[3]
     }
 }

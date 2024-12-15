@@ -1,6 +1,6 @@
 //! ZUC Confidentiality Algorithms
 
-use super::Zuc128;
+use crate::Zuc128Core;
 
 /// ZUC xor encryption algorithm
 /// ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3))
@@ -22,7 +22,7 @@ pub fn xor_encrypt(ck: &[u8; 16], iv: &[u8; 16], length: u32, ibs: &[u8]) -> Vec
     let bitlen = usize::try_from(length).expect("bit length overflow");
     assert!(bitlen <= ibs.len() * 8);
 
-    let mut zuc = Zuc128::new(ck, iv);
+    let mut zuc = Zuc128Core::new(ck, iv);
     let mut res = ibs.to_vec();
 
     for i in 0..ibs.len() / 4 {
