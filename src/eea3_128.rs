@@ -1,48 +1,51 @@
-//! ZUC Confidentiality Algorithm
-//! ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
+//! ZUC Confidentiality Algorithms
 
 use super::Zuc128;
 
-/// zuc xor encryption algorithm
-/// ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
+/// ZUC xor encryption algorithm
+/// ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3))
 ///
-/// # input:
-/// - ck:       128bit  confidentiality key
-/// - iv:       128bit  initial vector
-/// - length:   32bit   bit length of plaintext information stream
-/// - ibs:      &[u8]   input bitstream
+/// Input:
+/// - `ck`:       128bit  confidentiality key
+/// - `iv`:       128bit  initial vector
+/// - `length`:   32bit   bit length of plaintext information stream
+/// - `ibs`:      input bitstream
 ///
-/// # output:
-/// - Vec<u8>:  encrypted bit stream
+/// Output:
+/// - [`Vec<u8>`]:  encrypted bit stream
+///
+/// # Panics
+/// + Panics if `length` is greater than the length of `ibs` times 8.
+/// + Panics if `length` is greater than `usize::MAX`.
 #[must_use]
-#[allow(clippy::needless_range_loop)]
-#[allow(clippy::cast_possible_truncation)]
-pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
-    let ck = ck.to_be_bytes();
-    let iv = iv.to_ne_bytes();
+pub fn xor_encrypt(ck: &[u8; 16], iv: &[u8; 16], length: u32, ibs: &[u8]) -> Vec<u8> {
+    let bitlen = usize::try_from(length).expect("bit length overflow");
+    assert!(bitlen <= ibs.len() * 8);
 
-    let mut zuc = Zuc128::new(&ck, &iv);
-    let mut keys = zuc.generate().to_be();
+    let mut zuc = Zuc128::new(ck, iv);
+    let mut res = ibs.to_vec();
 
-    let mut res = ibs
-        .to_vec()
-        .iter_mut()
-        .enumerate()
-        .map(|(i, byte)| {
-            *byte ^= (keys >> ((i % 4) * 8)) as u8;
-            if i % 4 == 3 {
-                keys = zuc.generate().to_be();
-            }
-            *byte
-        })
-        .collect::<Vec<u8>>();
-
-    if length % 8 != 0 {
-        res[length as usize / 8] &= 0xFF << (8 - length % 8);
-        res[length as usize / 8] |= ibs[length as usize / 8] & (0xFF >> (8 - length % 8));
+    for i in 0..ibs.len() / 4 {
+        let k = zuc.generate().to_be_bytes();
+        for j in 0..4 {
+            res[i * 4 + j] ^= k[j];
+        }
     }
-    for i in length as usize / 8 + 1..res.len() {
-        res[i] = 0x0;
+
+    {
+        let i = ibs.len() / 4 * 4;
+        let k = zuc.generate().to_be_bytes();
+        for j in 0..ibs.len() % 4 {
+            res[i + j] ^= k[j];
+        }
+    }
+
+    if bitlen % 8 != 0 {
+        res[bitlen / 8] &= 0xFF << (8 - bitlen % 8);
+    }
+
+    for i in bitlen / 8 + 1..res.len() {
+        res[i] = 0;
     }
 
     res
@@ -51,271 +54,231 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
 /// 128-EEA3: 3GPP confidentiality algorithm
 /// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
 ///
-/// # Input:
+/// Input:
 /// - count:        32bit   counter
 /// - bearer:       5bit    carrier layer identification
 /// - direction:    1bit    transmission direction identification
 /// - ck:           128bit  confidentiality key
 /// - length:       32bit   bit length of plaintext information stream
-/// - ibs:          &[u8]   input bitstream
+/// - ibs:          input bitstream
 ///
-/// # output:
-/// - Vec<u8>:  encrypted bit stream
+/// Output:
+/// - [`Vec<u8>`]:  encrypted bit stream
+///
+/// # Panics
+/// + Panics if `length` is greater than the length of `ibs` times 8.
+/// + Panics if `length` is greater than `usize::MAX`.
 #[must_use]
-#[allow(clippy::cast_possible_truncation)]
-pub fn eea3_128(
+pub fn eea3_128_encrypt(
     count: u32,
     bearer: u8,
     direction: u8,
-    ck: u128,
+    ck: &[u8; 16],
     length: u32,
     ibs: &[u8],
 ) -> Vec<u8> {
-    // init
-    let bearer = bearer & ((1 << 6) - 1);
-    let direction = direction & 0x1;
+    let bearer = bearer & 0x1f;
+    let direction = direction & 0x01;
+    let count = count.to_be_bytes();
 
     let mut iv = [0_u8; 16];
-    iv[0] = (count >> 24) as u8;
-    iv[1] = (count >> 16) as u8;
-    iv[2] = (count >> 8) as u8;
-    iv[3] = count as u8;
-    iv[4] = bearer << 3 | direction << 2;
-    iv[5..=7].fill(0x0);
-    let (left, right) = iv.split_at_mut(8);
-    right.copy_from_slice(left);
+    iv[0] = count[0];
+    iv[1] = count[1];
+    iv[2] = count[2];
+    iv[3] = count[3];
+    iv[4] = (bearer << 3) | (direction << 2);
 
-    encryption_xor(ck, u128::from_ne_bytes(iv), length, ibs)
+    iv[8] = iv[0];
+    iv[9] = iv[1];
+    iv[10] = iv[2];
+    iv[11] = iv[3];
+    iv[12] = iv[4];
+
+    xor_encrypt(ck, &iv, length, ibs)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::eea3_128::eea3_128;
+    use super::*;
 
-    /// 3GPP LTE Example 1
+    use const_str::hex;
+
+    struct Example {
+        ck: [u8; 16],
+        count: u32,
+        bearer: u8,
+        direction: u8,
+        length: u32,
+        ibs: &'static [u8],
+        obs: &'static [u8],
+    }
+
+    /// Test Set 1
+    /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
+    ///
+    /// Example 1
     /// FROM <https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3>
+    static EXAMPLE1: Example = Example {
+        ck: hex!("17 3d 14 ba 50 03 73 1d 7a 60 04 94 70 f0 0a 29"),
+        count: 0x6603_5492,
+        bearer: 0xf,
+        direction: 0,
+        length: 193,
+        ibs: &hex!("6cf65340 735552ab 0c9752fa 6f9025fe 0bd675d9 005875b2 00000000"),
+        obs: &hex!("a6c85fc6 6afb8533 aafc2518 dfe78494 0ee1e4b0 30238cc8 00000000"),
+    };
+
+    /// Test Set 2
     /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
-    #[test]
-    fn test_1() {
-        let ck = 0x17_3d_14_ba_50_03_73_1d_7a_60_04_94_70_f0_0a_29;
-        let count = 0x6603_5492;
-        let bearer = 0xf;
-        let direction = 0x0;
-        let length = 0xc1;
-        let ibs: [u8; 28] = [
-            0x6c, 0xf6, 0x53, 0x40, 0x73, 0x55, 0x52, 0xab, 0x0c, 0x97, 0x52, 0xfa, 0x6f, 0x90,
-            0x25, 0xfe, 0x0b, 0xd6, 0x75, 0xd9, 0x00, 0x58, 0x75, 0xb2, 0x00, 0x00, 0x00, 0x00,
-        ];
-        let obs: [u8; 28] = [
-            0xa6, 0xc8, 0x5f, 0xc6, 0x6a, 0xfb, 0x85, 0x33, 0xaa, 0xfc, 0x25, 0x18, 0xdf, 0xe7,
-            0x84, 0x94, 0x0e, 0xe1, 0xe4, 0xb0, 0x30, 0x23, 0x8c, 0xc8, 0x00, 0x00, 0x00, 0x00,
-        ];
-
-        assert_eq!(
-            eea3_128(count, bearer, direction, ck, length, &ibs),
-            &obs[..]
-        );
-    }
-
-    /// 3GPP LTE Example 2
+    ///
+    /// Example 2
     /// FROM <https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3>
+    static EXAMPLE2: Example = Example {
+        ck: hex!("e5 bd 3e a0 eb 55 ad e8 66 c6 ac 58 bd 54 30 2a"),
+        count: 0x56823,
+        bearer: 0x18,
+        direction: 1,
+        length: 800,
+        ibs: &hex!([
+            "14a8ef69 3d678507 bbe7270a 7f67ff50 06c3525b 9807e467 c4e56000 ba338f5d",
+            "42955903 67518222 46c80d3b 38f07f4b e2d8ff58 05f51322 29bde93b bbdcaf38",
+            "2bf1ee97 2fbf9977 bada8945 847a2a6c 9ad34a66 7554e04d 1f7fa2c3 3241bd8f",
+            "01ba220d",
+        ]),
+        obs: &hex!([
+            "131d43e0 dea1be5c 5a1bfd97 1d852cbf 712d7b4f 57961fea 3208afa8 bca433f4",
+            "56ad09c7 417e58bc 69cf8866 d1353f74 865e8078 1d202dfb 3ecff7fc bc3b190f",
+            "e82a204e d0e350fc 0f6f2613 b2f2bca6 df5a473a 57a4a00d 985ebad8 80d6f238",
+            "64a07b01",
+        ]),
+    };
+
+    /// Test Set 3
     /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
-    #[test]
-    fn test_2() {
-        let ck: u128 = 0xe5_bd_3e_a0_eb_55_ad_e8_66_c6_ac_58_bd_54_30_2a;
-        let count = 0x56823;
-        let bearer = 0x18;
-        let direction = 0x1;
-        let length = 0x320;
-        let ibs: [u8; 100] = [
-            0x14, 0xa8, 0xef, 0x69, 0x3d, 0x67, 0x85, 0x07, 0xbb, 0xe7, 0x27, 0x0a, 0x7f, 0x67,
-            0xff, 0x50, 0x06, 0xc3, 0x52, 0x5b, 0x98, 0x07, 0xe4, 0x67, 0xc4, 0xe5, 0x60, 0x00,
-            0xba, 0x33, 0x8f, 0x5d, 0x42, 0x95, 0x59, 0x03, 0x67, 0x51, 0x82, 0x22, 0x46, 0xc8,
-            0x0d, 0x3b, 0x38, 0xf0, 0x7f, 0x4b, 0xe2, 0xd8, 0xff, 0x58, 0x05, 0xf5, 0x13, 0x22,
-            0x29, 0xbd, 0xe9, 0x3b, 0xbb, 0xdc, 0xaf, 0x38, 0x2b, 0xf1, 0xee, 0x97, 0x2f, 0xbf,
-            0x99, 0x77, 0xba, 0xda, 0x89, 0x45, 0x84, 0x7a, 0x2a, 0x6c, 0x9a, 0xd3, 0x4a, 0x66,
-            0x75, 0x54, 0xe0, 0x4d, 0x1f, 0x7f, 0xa2, 0xc3, 0x32, 0x41, 0xbd, 0x8f, 0x01, 0xba,
-            0x22, 0x0d,
-        ];
-        let obs: [u8; 100] = [
-            0x13, 0x1d, 0x43, 0xe0, 0xde, 0xa1, 0xbe, 0x5c, 0x5a, 0x1b, 0xfd, 0x97, 0x1d, 0x85,
-            0x2c, 0xbf, 0x71, 0x2d, 0x7b, 0x4f, 0x57, 0x96, 0x1f, 0xea, 0x32, 0x08, 0xaf, 0xa8,
-            0xbc, 0xa4, 0x33, 0xf4, 0x56, 0xad, 0x09, 0xc7, 0x41, 0x7e, 0x58, 0xbc, 0x69, 0xcf,
-            0x88, 0x66, 0xd1, 0x35, 0x3f, 0x74, 0x86, 0x5e, 0x80, 0x78, 0x1d, 0x20, 0x2d, 0xfb,
-            0x3e, 0xcf, 0xf7, 0xfc, 0xbc, 0x3b, 0x19, 0x0f, 0xe8, 0x2a, 0x20, 0x4e, 0xd0, 0xe3,
-            0x50, 0xfc, 0x0f, 0x6f, 0x26, 0x13, 0xb2, 0xf2, 0xbc, 0xa6, 0xdf, 0x5a, 0x47, 0x3a,
-            0x57, 0xa4, 0xa0, 0x0d, 0x98, 0x5e, 0xba, 0xd8, 0x80, 0xd6, 0xf2, 0x38, 0x64, 0xa0,
-            0x7b, 0x01,
-        ];
+    static EXAMPLE3: Example = Example {
+        ck: hex!("d4 55 2a 8f d6 e6 1c c8 1a 20 09 14 1a 29 c1 0b"),
+        count: 0x7645_2ec1,
+        bearer: 0x2,
+        direction: 1,
+        length: 1570,
+        ibs: &hex!([
+            "38f07f4b e2d8ff58 05f51322 29bde93b bbdcaf38 2bf1ee97 2fbf9977 bada8945",
+            "847a2a6c 9ad34a66 7554e04d 1f7fa2c3 3241bd8f 01ba220d 3ca4ec41 e074595f",
+            "54ae2b45 4fd97143 20436019 65cca85c 2417ed6c bec3bada 84fc8a57 9aea7837",
+            "b0271177 242a64dc 0a9de71a 8edee86c a3d47d03 3d6bf539 804eca86 c584a905",
+            "2de46ad3 fced6554 3bd90207 372b27af b79234f5 ff43ea87 0820e2c2 b78a8aae",
+            "61cce52a 0515e348 d196664a 3456b182 a07c406e 4a207912 71cfeda1 65d535ec",
+            "5ea2d4df 40000000",
+        ]),
+        obs: &hex!([
+            "8383b022 9fcc0b9d 2295ec41 c977e9c2 bb72e220 378141f9 c8318f3a 270dfbcd",
+            "ee6411c2 b3044f17 6dc6e00f 8960f97a facd131a d6a3b49b 16b7babc f2a509eb",
+            "b16a75dc ab14ff27 5dbeeea1 a2b155f9 d52c2645 2d0187c3 10a4ee55 beaa78ab",
+            "4024615b a9f5d5ad c7728f73 560671f0 13e5e550 085d3291 df7d5fec edded559",
+            "641b6c2f 585233bc 71e9602b d2305855 bbd25ffa 7f17ecbc 042daae3 8c1f57ad",
+            "8e8ebd37 346f71be fdbb7432 e0e0bb2c fc09bcd9 6570cb0c 0c39df5e 29294e82",
+            "703a637f 80000000",
+        ]),
+    };
 
-        assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), &obs);
-    }
+    /// Test Set 4
+    /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
+    static EXAMPLE4: Example = Example {
+        ck: hex!("db 84 b4 fb cc da 56 3b 66 22 7b fe 45 6f 0f 77"),
+        count: 0xe485_0fe1,
+        bearer: 0x10,
+        direction: 1,
+        length: 2798,
+        ibs: &hex!([
+            "e539f3b8 973240da 03f2b8aa 05ee0a00 dbafc0e1 82055dfe 3d7383d9 2cef40e9",
+            "2928605d 52d05f4f 9018a1f1 89ae3997 ce19155f b1221db8 bb0951a8 53ad852c",
+            "e16cff07 382c93a1 57de00dd b125c753 9fd85045 e4ee07e0 c43f9e9d 6f414fc4",
+            "d1c62917 813f74c0 0fc83f3e 2ed7c45b a5835264 b43e0b20 afda6b30 53bfb642",
+            "3b7fce25 479ff5f1 39dd9b5b 995558e2 a56be18d d581cd01 7c735e6f 0d0d97c4",
+            "ddc1d1da 70c6db4a 12cc9277 8e2fbbd6 f3ba52af 91c9c6b6 4e8da4f7 a2c266d0",
+            "2d001753 df089603 93c5d568 88bf49eb 5c16d9a8 0427a416 bcb597df 5bfe6f13",
+            "890a07ee 1340e647 6b0d9aa8 f822ab0f d1ab0d20 4f40b7ce 6f2e136e b67485e5",
+            "07804d50 4588ad37 ffd81656 8b2dc403 11dfb654 cdead47e 2385c343 6203dd83",
+            "6f9c64d9 7462ad5d fa63b5cf e08acb95 32866f5c a787566f ca93e6b1 693ee15c",
+            "f6f7a2d6 89d97417 98dc1c23 8e1be650 733b18fb 34ff880e 16bbd21b 47ac0000",
+        ]),
+        obs: &hex!([
+            "4bbfa91b a25d47db 9a9f190d 962a19ab 323926b3 51fbd39e 351e05da 8b8925e3",
+            "0b1cce0d 12211010 95815cc7 cb631950 9ec0d679 40491987 e13f0aff ac332aa6",
+            "aa64626d 3e9a1917 519e0b97 b655c6a1 65e44ca9 feac0790 d2a321ad 3d86b79c",
+            "5138739f a38d887e c7def449 ce8abdd3 e7f8dc4c a9e7b733 14ad310f 9025e619",
+            "46b3a56d c649ec0d a0d63943 dff592cf 962a7efb 2c8524e3 5a2a6e78 79d62604",
+            "ef268695 fa400302 7e22e608 30775220 64bd4a5b 906b5f53 1274f235 ed506cff",
+            "0154c754 928a0ce5 476f2cb1 020a1222 d32c1455 ecaef1e3 68fb344d 1735bfbe",
+            "deb71d0a 33a2a54b 1da5a294 e679144d df11eb1a 3de8cf0c c0619179 74f35c1d",
+            "9ca0ac81 807f8fcc e6199a6c 7712da86 5021b04c e0439516 f1a526cc da9fd9ab",
+            "bd53c3a6 84f9ae1e 7ee6b11d a138ea82 6c5516b5 aadf1abb e36fa7ff f92e3a11",
+            "76064e8d 95f2e488 2b5500b9 3228b219 4a475c1a 27f63f9f fd264989 a1bc0000",
+        ]),
+    };
 
-    /// 3GPP LTE Example 3
+    /// Test Set 5
+    /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
+    ///
+    /// Example 3
     /// FROM <https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3>
-    /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
+    static EXAMPLE5: Example = Example {
+        ck: hex!("e1 3f ed 21 b4 6e 4e 7e c3 12 53 b2 bb 17 b3 e0"),
+        count: 0x2738_cdaa,
+        bearer: 0x1a,
+        direction: 0,
+        length: 4019,
+        ibs: &hex!([
+            "8d74e20d 54894e06 d3cb13cb 3933065e 8674be62 adb1c72b 3a646965 ab63cb7b",
+            "7854dfdc 27e84929 f49c64b8 72a490b1 3f957b64 827e71f4 1fbd4269 a42c97f8",
+            "24537027 f86e9f4a d82d1df4 51690fdd 98b6d03f 3a0ebe3a 312d6b84 0ba5a182",
+            "0b2a2c97 09c090d2 45ed267c f845ae41 fa975d33 33ac3009 fd40eba9 eb5b8857",
+            "14b768b6 97138baf 21380eca 49f644d4 8689e421 5760b906 739f0d2b 3f091133",
+            "ca15d981 cbe401ba f72d05ac e05cccb2 d297f4ef 6a5f58d9 1246cfa7 7215b892",
+            "ab441d52 78452795 ccb7f5d7 9057a1c4 f77f80d4 6db2033c b79bedf8 e60551ce",
+            "10c667f6 2a97abaf abbcd677 2018df96 a282ea73 7ce2cb33 1211f60d 5354ce78",
+            "f9918d9c 206ca042 c9b62387 dd709604 a50af16d 8d35a890 6be484cf 2e74a928",
+            "99403643 53249b27 b4c9ae29 eddfc7da 6418791a 4e7baa06 60fa6451 1f2d685c",
+            "c3a5ff70 e0d2b742 92e3b8a0 cd6b04b1 c790b8ea d2703708 540dea2f c09c3da7",
+            "70f65449 e84d817a 4f551055 e19ab850 18a0028b 71a144d9 6791e9a3 57793350",
+            "4eee0060 340c69d2 74e1bf9d 805dcbcc 1a6faa97 6800b6ff 2b671dc4 63652fa8",
+            "a33ee509 74c1c21b e01eabb2 16743026 9d72ee51 1c9dde30 797c9a25 d86ce74f",
+            "5b961be5 fdfb6807 814039e7 137636bd 1d7fa9e0 9efd2007 505906a5 ac45dfde",
+            "ed7757bb ee745749 c2963335 0bee0ea6 f409df45 80160000",
+        ]),
+        obs: &hex!([
+            "94eaa4aa 30a57137 ddf09b97 b25618a2 0a13e2f1 0fa5bf81 61a879cc 2ae797a6",
+            "b4cf2d9d f31debb9 905ccfec 97de605d 21c61ab8 531b7f3c 9da5f039 31f8a064",
+            "2de48211 f5f52ffe a10f392a 04766998 5da454a2 8f080961 a6c2b62d aa17f33c",
+            "d60a4971 f48d2d90 9394a55f 48117ace 43d708e6 b77d3dc4 6d8bc017 d4d1abb7",
+            "7b7428c0 42b06f2f 99d8d07c 9879d996 00127a31 985f1099 bbd7d6c1 519ede8f",
+            "5eeb4a61 0b349ac0 1ea23506 91756bd1 05c974a5 3eddb35d 1d4100b0 12e522ab",
+            "41f4c5f2 fde76b59 cb8b96d8 85cfe408 0d1328a0 d636cc0e dc05800b 76acca8f",
+            "ef672084 d1f52a8b bd8e0993 320992c7 ffbae17c 408441e0 ee883fc8 a8b05e22",
+            "f5ff7f8d 1b48c74c 468c467a 028f09fd 7ce91109 a570a2d5 c4d5f4fa 18c5dd3e",
+            "4562afe2 4ef77190 1f59af64 5898acef 088abae0 7e92d52e b2de5504 5bb1b7c4",
+            "164ef2d7 a6cac15e eb926d7e a2f08b66 e1f759f3 aee44614 725aa3c7 482b3084",
+            "4c143ff8 5b53f1e5 83c50125 7dddd096 b81268da a303f172 34c23335 41f0bb8e",
+            "190648c5 807c866d 71932286 09adb948 686f7de2 94a802cc 38f7fe52 08f5ea31",
+            "96d0167b 9bdd02f0 d2a5221c a508f893 af5c4b4b b9f4f520 fd84289b 3dbe7e61",
+            "497a7e2a 584037ea 637b6981 127174af 57b471df 4b2768fd 79c1540f b3edf2ea",
+            "22cb69be c0cf8d93 3d9c6fdd 645e8505 91cca3d6 2c0cc000",
+        ]),
+    };
+
     #[test]
-    fn test_3() {
-        let ck = u128::from_be_bytes([
-            0xe1, 0x3f, 0xed, 0x21, 0xb4, 0x6e, 0x4e, 0x7e, 0xc3, 0x12, 0x53, 0xb2, 0xbb, 0x17,
-            0xb3, 0xe0,
-        ]);
-        let count = 0x2738_cdaa;
-        let bearer = 0x1a;
-        let direction = 0x0;
-        let length = 0xfb3;
-        #[rustfmt::skip]
-        let ibs: [u32; 126] = [
-            0x8d74_e20d, 0x5489_4e06, 0xd3cb_13cb, 0x3933_065e, 0x8674_be62, 0xadb1_c72b, 0x3a64_6965,
-            0xab63_cb7b, 0x7854_dfdc, 0x27e8_4929, 0xf49c_64b8, 0x72a4_90b1, 0x3f95_7b64, 0x827e_71f4,
-            0x1fbd_4269, 0xa42c_97f8, 0x2453_7027, 0xf86e_9f4a, 0xd82d_1df4, 0x5169_0fdd, 0x98b6_d03f,
-            0x3a0e_be3a, 0x312d_6b84, 0x0ba5_a182, 0x0b2a_2c97, 0x09c0_90d2, 0x45ed_267c, 0xf845_ae41,
-            0xfa97_5d33, 0x33ac_3009, 0xfd40_eba9, 0xeb5b_8857, 0x14b7_68b6, 0x9713_8baf, 0x2138_0eca,
-            0x49f6_44d4, 0x8689_e421, 0x5760_b906, 0x739f_0d2b, 0x3f09_1133, 0xca15_d981, 0xcbe4_01ba,
-            0xf72d_05ac, 0xe05c_ccb2, 0xd297_f4ef, 0x6a5f_58d9, 0x1246_cfa7, 0x7215_b892, 0xab44_1d52,
-            0x7845_2795, 0xccb7_f5d7, 0x9057_a1c4, 0xf77f_80d4, 0x6db2_033c, 0xb79b_edf8, 0xe605_51ce,
-            0x10c6_67f6, 0x2a97_abaf, 0xabbc_d677, 0x2018_df96, 0xa282_ea73, 0x7ce2_cb33, 0x1211_f60d,
-            0x5354_ce78, 0xf991_8d9c, 0x206c_a042, 0xc9b6_2387, 0xdd70_9604, 0xa50a_f16d, 0x8d35_a890,
-            0x6be4_84cf, 0x2e74_a928, 0x9940_3643, 0x5324_9b27, 0xb4c9_ae29, 0xeddf_c7da, 0x6418_791a,
-            0x4e7b_aa06, 0x60fa_6451, 0x1f2d_685c, 0xc3a5_ff70, 0xe0d2_b742, 0x92e3_b8a0, 0xcd6b_04b1,
-            0xc790_b8ea, 0xd270_3708, 0x540d_ea2f, 0xc09c_3da7, 0x70f6_5449, 0xc84d_817a, 0x4f55_1055,
-            0xe19a_b850, 0x18a0_028b, 0x71a1_44d9, 0x6791_e9a3, 0x5779_3350, 0x4eee_0060, 0x340c_69d2,
-            0x74e1_bf9d, 0x805d_cbcc, 0x1a6f_aa97, 0x6800_b6ff, 0x2b67_1dc4, 0x6365_2fa8, 0xa33e_e509,
-            0x74c1_c21b, 0xe01e_abb2, 0x1674_3026, 0x9d72_ee51, 0x1c9d_de30, 0x797c_9a25, 0xd86c_e74f,
-            0x5b96_1be5, 0xfdfb_6807, 0x8140_39e7, 0x1376_36bd, 0x1d7f_a9e0, 0x9efd_2007, 0x5059_06a5,
-            0xac45_dfde, 0xed77_57bb, 0xee74_5749, 0xc296_3335, 0x0bee_0ea6, 0xf409_df45, 0x8016_0000,
-        ];
-        #[rustfmt::skip]
-        let obs: [u32; 126] = [
-            0x94ea_a4aa, 0x30a5_7137, 0xddf0_9b97, 0xb256_18a2, 0x0a13_e2f1, 0x0fa5_bf81, 0x61a8_79cc,
-            0x2ae7_97a6, 0xb4cf_2d9d, 0xf31d_ebb9, 0x905c_cfec, 0x97de_605d, 0x21c6_1ab8, 0x531b_7f3c,
-            0x9da5_f039, 0x31f8_a064, 0x2de4_8211, 0xf5f5_2ffe, 0xa10f_392a, 0x0476_6998, 0x5da4_54a2,
-            0x8f08_0961, 0xa6c2_b62d, 0xaa17_f33c, 0xd60a_4971, 0xf48d_2d90, 0x9394_a55f, 0x4811_7ace,
-            0x43d7_08e6, 0xb77d_3dc4, 0x6d8b_c017, 0xd4d1_abb7, 0x7b74_28c0, 0x42b0_6f2f, 0x99d8_d07c,
-            0x9879_d996, 0x0012_7a31, 0x985f_1099, 0xbbd7_d6c1, 0x519e_de8f, 0x5eeb_4a61, 0x0b34_9ac0,
-            0x1ea2_3506, 0x9175_6bd1, 0x05c9_74a5, 0x3edd_b35d, 0x1d41_00b0, 0x12e5_22ab, 0x41f4_c5f2,
-            0xfde7_6b59, 0xcb8b_96d8, 0x85cf_e408, 0x0d13_28a0, 0xd636_cc0e, 0xdc05_800b, 0x76ac_ca8f,
-            0xef67_2084, 0xd1f5_2a8b, 0xbd8e_0993, 0x3209_92c7, 0xffba_e17c, 0x4084_41e0, 0xee88_3fc8,
-            0xa8b0_5e22, 0xf5ff_7f8d, 0x1b48_c74c, 0x468c_467a, 0x028f_09fd, 0x7ce9_1109, 0xa570_a2d5,
-            0xc4d5_f4fa, 0x18c5_dd3e, 0x4562_afe2, 0x4ef7_7190, 0x1f59_af64, 0x5898_acef, 0x088a_bae0,
-            0x7e92_d52e, 0xb2de_5504, 0x5bb1_b7c4, 0x164e_f2d7, 0xa6ca_c15e, 0xeb92_6d7e, 0xa2f0_8b66,
-            0xe1f7_59f3, 0xaee4_4614, 0x725a_a3c7, 0x482b_3084, 0x4c14_3ff8, 0x7b53_f1e5, 0x83c5_0125,
-            0x7ddd_d096, 0xb812_68da, 0xa303_f172, 0x34c2_3335, 0x41f0_bb8e, 0x1906_48c5, 0x807c_866d,
-            0x7193_2286, 0x09ad_b948, 0x686f_7de2, 0x94a8_02cc, 0x38f7_fe52, 0x08f5_ea31, 0x96d0_167b,
-            0x9bdd_02f0, 0xd2a5_221c, 0xa508_f893, 0xaf5c_4b4b, 0xb9f4_f520, 0xfd84_289b, 0x3dbe_7e61,
-            0x497a_7e2a, 0x5840_37ea, 0x637b_6981, 0x1271_74af, 0x57b4_71df, 0x4b27_68fd, 0x79c1_540f,
-            0xb3ed_f2ea, 0x22cb_69be, 0xc0cf_8d93, 0x3d9c_6fdd, 0x645e_8505, 0x91cc_a3d6, 0x2c0c_c000,
-        ];
-        let ibs = ibs
-            .iter()
-            .flat_map(|&word| word.to_be_bytes())
-            .collect::<Vec<u8>>();
-        let obs = obs
-            .iter()
-            .flat_map(|&word| word.to_be_bytes())
-            .collect::<Vec<u8>>();
-        assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), obs);
+    fn examples() {
+        let examples = [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3, &EXAMPLE4, &EXAMPLE5];
+        for x in examples {
+            let obs = eea3_128_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length, x.ibs);
+            assert_eq!(obs, x.obs);
+        }
     }
 
-    /// Test Set 3 from gsma
-    /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
+    #[should_panic(expected = "assertion failed: bitlen <= ibs.len() * 8")]
     #[test]
-    fn test_set_3_from_gsma() {
-        let ck = u128::from_be_bytes([
-            0xd4, 0x55, 0x2a, 0x8f, 0xd6, 0xe6, 0x1c, 0xc8, 0x1a, 0x20, 0x09, 0x14, 0x1a, 0x29,
-            0xc1, 0x0b,
-        ]);
-        let count = 0x7645_2ec1;
-        let bearer = 0x2;
-        let direction = 0x1;
-        let length = 1570;
-        #[rustfmt::skip]
-        let ibs: [u32; 50] = [
-            0x38f0_7f4b, 0xe2d8_ff58, 0x05f5_1322, 0x29bd_e93b, 0xbbdc_af38, 0x2bf1_ee97,
-            0x2fbf_9977, 0xbada_8945, 0x847a_2a6c, 0x9ad3_4a66, 0x7554_e04d, 0x1f7f_a2c3,
-            0x3241_bd8f, 0x01ba_220d, 0x3ca4_ec41, 0xe074_595f, 0x54ae_2b45, 0x4fd9_7143,
-            0x2043_6019, 0x65cc_a85c, 0x2417_ed6c, 0xbec3_bada, 0x84fc_8a57, 0x9aea_7837,
-            0xb027_1177, 0x242a_64dc, 0x0a9d_e71a, 0x8ede_e86c, 0xa3d4_7d03, 0x3d6b_f539,
-            0x804e_ca86, 0xc584_a905, 0x2de4_6ad3, 0xfced_6554, 0x3bd9_0207, 0x372b_27af,
-            0xb792_34f5, 0xff43_ea87, 0x0820_e2c2, 0xb78a_8aae, 0x61cc_e52a, 0x0515_e348,
-            0xd196_664a, 0x3456_b182, 0xa07c_406e, 0x4a20_7912, 0x71cf_eda1, 0x65d5_35ec,
-            0x5ea2_d4df, 0x4000_0000,
-        ];
-        #[rustfmt::skip]
-        let obs: [u32; 50] = [
-            0x8383_b022, 0x9fcc_0b9d, 0x2295_ec41, 0xc977_e9c2, 0xbb72_e220, 0x3781_41f9,
-            0xc831_8f3a, 0x270d_fbcd, 0xee64_11c2, 0xb304_4f17, 0x6dc6_e00f, 0x8960_f97a,
-            0xfacd_131a, 0xd6a3_b49b, 0x16b7_babc, 0xf2a5_09eb, 0xb16a_75dc, 0xab14_ff27,
-            0x5dbe_eea1, 0xa2b1_55f9, 0xd52c_2645, 0x2d01_87c3, 0x10a4_ee55, 0xbeaa_78ab,
-            0x4024_615b, 0xa9f5_d5ad, 0xc772_8f73, 0x5606_71f0, 0x13e5_e550, 0x085d_3291,
-            0xdf7d_5fec, 0xedde_d559, 0x641b_6c2f, 0x5852_33bc, 0x71e9_602b, 0xd230_5855,
-            0xbbd2_5ffa, 0x7f17_ecbc, 0x042d_aae3, 0x8c1f_57ad, 0x8e8e_bd37, 0x346f_71be,
-            0xfdbb_7432, 0xe0e0_bb2c, 0xfc09_bcd9, 0x6570_cb0c, 0x0c39_df5e, 0x2929_4e82,
-            0x703a_637f, 0x8000_0000,
-        ];
-        let ibs = ibs
-            .iter()
-            .flat_map(|&word| word.to_be_bytes())
-            .collect::<Vec<u8>>();
-        let obs = obs
-            .iter()
-            .flat_map(|&word| word.to_be_bytes())
-            .collect::<Vec<u8>>();
-        assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), obs);
-    }
-
-    /// Test Set 4 from gsma
-    /// FROM <https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/eea3eia3testdatav11.pdf>
-    #[test]
-    fn test_set_4_from_gsma() {
-        let ck = u128::from_be_bytes([
-            0xdb, 0x84, 0xb4, 0xfb, 0xcc, 0xda, 0x56, 0x3b, 0x66, 0x22, 0x7b, 0xfe, 0x45, 0x6f,
-            0x0f, 0x77,
-        ]);
-        let count = 0xe485_0fe1;
-        let bearer = 0x0010;
-        let direction = 0x0001;
-        let length = 2798;
-        #[rustfmt::skip]
-        let ibs: [u32; 88] = [
-            0xe539_f3b8, 0x9732_40da, 0x03f2_b8aa, 0x05ee_0a00, 0xdbaf_c0e1, 0x8205_5dfe, 0x3d73_83d9,
-            0x2cef_40e9, 0x2928_605d, 0x52d0_5f4f, 0x9018_a1f1, 0x89ae_3997, 0xce19_155f, 0xb122_1db8,
-            0xbb09_51a8, 0x53ad_852c, 0xe16c_ff07, 0x382c_93a1, 0x57de_00dd, 0xb125_c753, 0x9fd8_5045,
-            0xe4ee_07e0, 0xc43f_9e9d, 0x6f41_4fc4, 0xd1c6_2917, 0x813f_74c0, 0x0fc8_3f3e, 0x2ed7_c45b,
-            0xa583_5264, 0xb43e_0b20, 0xafda_6b30, 0x53bf_b642, 0x3b7f_ce25, 0x479f_f5f1, 0x39dd_9b5b,
-            0x9955_58e2, 0xa56b_e18d, 0xd581_cd01, 0x7c73_5e6f, 0x0d0d_97c4, 0xddc1_d1da, 0x70c6_db4a,
-            0x12cc_9277, 0x8e2f_bbd6, 0xf3ba_52af, 0x91c9_c6b6, 0x4e8d_a4f7, 0xa2c2_66d0, 0x2d00_1753,
-            0xdf08_9603, 0x93c5_d568, 0x88bf_49eb, 0x5c16_d9a8, 0x0427_a416, 0xbcb5_97df, 0x5bfe_6f13,
-            0x890a_07ee, 0x1340_e647, 0x6b0d_9aa8, 0xf822_ab0f, 0xd1ab_0d20, 0x4f40_b7ce, 0x6f2e_136e,
-            0xb674_85e5, 0x0780_4d50, 0x4588_ad37, 0xffd8_1656, 0x8b2d_c403, 0x11df_b654, 0xcdea_d47e,
-            0x2385_c343, 0x6203_dd83, 0x6f9c_64d9, 0x7462_ad5d, 0xfa63_b5cf, 0xe08a_cb95, 0x3286_6f5c,
-            0xa787_566f, 0xca93_e6b1, 0x693e_e15c, 0xf6f7_a2d6, 0x89d9_7417, 0x98dc_1c23, 0x8e1b_e650,
-            0x733b_18fb, 0x34ff_880e, 0x16bb_d21b, 0x47ac_0000,
-        ];
-        #[rustfmt::skip]
-        let obs: [u32; 88] = [
-            0x4bbf_a91b, 0xa25d_47db, 0x9a9f_190d, 0x962a_19ab, 0x3239_26b3, 0x51fb_d39e, 0x351e_05da,
-            0x8b89_25e3, 0x0b1c_ce0d, 0x1221_1010, 0x9581_5cc7, 0xcb63_1950, 0x9ec0_d679, 0x4049_1987,
-            0xe13f_0aff, 0xac33_2aa6, 0xaa64_626d, 0x3e9a_1917, 0x519e_0b97, 0xb655_c6a1, 0x65e4_4ca9,
-            0xfeac_0790, 0xd2a3_21ad, 0x3d86_b79c, 0x5138_739f, 0xa38d_887e, 0xc7de_f449, 0xce8a_bdd3,
-            0xe7f8_dc4c, 0xa9e7_b733, 0x14ad_310f, 0x9025_e619, 0x46b3_a56d, 0xc649_ec0d, 0xa0d6_3943,
-            0xdff5_92cf, 0x962a_7efb, 0x2c85_24e3, 0x5a2a_6e78, 0x79d6_2604, 0xef26_8695, 0xfa40_0302,
-            0x7e22_e608, 0x3077_5220, 0x64bd_4a5b, 0x906b_5f53, 0x1274_f235, 0xed50_6cff, 0x0154_c754,
-            0x928a_0ce5, 0x476f_2cb1, 0x020a_1222, 0xd32c_1455, 0xecae_f1e3, 0x68fb_344d, 0x1735_bfbe,
-            0xdeb7_1d0a, 0x33a2_a54b, 0x1da5_a294, 0xe679_144d, 0xdf11_eb1a, 0x3de8_cf0c, 0xc061_9179,
-            0x74f3_5c1d, 0x9ca0_ac81, 0x807f_8fcc, 0xe619_9a6c, 0x7712_da86, 0x5021_b04c, 0xe043_9516,
-            0xf1a5_26cc, 0xda9f_d9ab, 0xbd53_c3a6, 0x84f9_ae1e, 0x7ee6_b11d, 0xa138_ea82, 0x6c55_16b5,
-            0xaadf_1abb, 0xe36f_a7ff, 0xf92e_3a11, 0x7606_4e8d, 0x95f2_e488, 0x2b55_00b9, 0x3228_b219,
-            0x4a47_5c1a, 0x27f6_3f9f, 0xfd26_4989, 0xa1bc_0000,
-        ];
-        let ibs = ibs
-            .iter()
-            .flat_map(|&word| word.to_be_bytes())
-            .collect::<Vec<u8>>();
-        let obs = obs
-            .iter()
-            .flat_map(|&word| word.to_be_bytes())
-            .collect::<Vec<u8>>();
-        assert_eq!(eea3_128(count, bearer, direction, ck, length, &ibs), obs);
+    fn invalid_input() {
+        let x = &EXAMPLE1;
+        let _ = eea3_128_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length * 2, x.ibs);
     }
 }

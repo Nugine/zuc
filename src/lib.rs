@@ -16,6 +16,7 @@
 #![allow(
     clippy::inline_always, //
     clippy::needless_range_loop,
+    clippy::module_name_repetitions,
 )]
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -26,7 +27,7 @@ mod zuc128;
 pub use self::zuc128::Zuc128;
 
 mod eea3_128;
-pub use eea3_128::{eea3_128, encryption_xor};
+pub use eea3_128::{eea3_128_encrypt, xor_encrypt};
 
 mod zuc256;
 pub use self::zuc256::Zuc256;
