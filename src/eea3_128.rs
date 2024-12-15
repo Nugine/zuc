@@ -1,7 +1,7 @@
 //! ZUC Confidentiality Algorithm
 //! ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
 
-use crate::ZUC128;
+use super::Zuc128;
 
 /// zuc xor encryption algorithm
 /// ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3 ))
@@ -18,12 +18,10 @@ use crate::ZUC128;
 #[allow(clippy::needless_range_loop)]
 #[allow(clippy::cast_possible_truncation)]
 pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
-    let l = (length + 31) / 32;
-
     let ck = ck.to_be_bytes();
     let iv = iv.to_ne_bytes();
 
-    let mut zuc = ZUC128::new(&ck, &iv);
+    let mut zuc = Zuc128::new(&ck, &iv);
     let mut res = ibs.to_vec();
     let mut keys = zuc.generate().to_be();
 
