@@ -23,11 +23,6 @@ pub fn encryption_xor(ck: u128, iv: u128, length: u32, ibs: &[u8]) -> Vec<u8> {
     let ck = ck.to_be_bytes();
     let iv = iv.to_ne_bytes();
 
-    for item in ibs {
-        print!("{item:x} ");
-    }
-    println!();
-
     let mut zuc = ZUC128::new(&ck, &iv);
     let mut res = ibs.to_vec();
     let mut keys = zuc.generate().to_be();
