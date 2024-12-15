@@ -15,4 +15,5 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+cipher = "0.4.4"
 const-str = "0.5.7"

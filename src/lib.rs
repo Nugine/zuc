@@ -21,10 +21,11 @@
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+mod utils;
 mod zuc;
 
 mod zuc128;
-pub use self::zuc128::Zuc128;
+pub use self::zuc128::{Zuc128, Zuc128Core};
 
 mod eea3_128;
 pub use eea3_128::{eea3_128_encrypt, xor_encrypt};
@@ -32,4 +33,4 @@ pub use eea3_128::{eea3_128_encrypt, xor_encrypt};
 mod zuc256;
 pub use self::zuc256::Zuc256;
 
-mod utils;
+pub use cipher;
