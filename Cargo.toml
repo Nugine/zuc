@@ -17,3 +17,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 cipher = "0.4.4"
 const-str = "0.5.7"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "zuc128_benchmark"
+harness = false
