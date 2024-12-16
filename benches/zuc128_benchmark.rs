@@ -1,4 +1,3 @@
-use cipher::{Block, KeyIvInit};
 use criterion::*;
 use zuc::Zuc128Core;
 
@@ -18,16 +17,12 @@ fn zuc128_generate_throughput(c: &mut Criterion) {
     for &size in &[1000, 2000, 3000, 10000, 20000, 30000] {
         group.throughput(Throughput::Bytes((size * 4) as u64)); // 每次 generate 生成 u32 (4 bytes)
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &s| {
-            let mut zuc = <Zuc128Core as KeyIvInit>::new((&K).into(), (&IV).into());
+            let mut zuc = Zuc128Core::new((&K).into(), (&IV).into());
             let mut buffer = vec![0u32; s];
             b.iter(|| {
-                for chunk in buffer.chunks_mut(1) {
-                    let mut block = Block::<Zuc128Core>::default();
-
-                    let z = zuc.generate();
-                    block.copy_from_slice(&z.to_be_bytes());
-                    chunk[0] = u32::from_be_bytes(block.into());
-                }
+                buffer.iter_mut().for_each(|chunk| {
+                    *chunk = zuc.generate();
+                });
             });
         });
     }
