@@ -120,7 +120,7 @@ mod tests {
         direction: u8,
         length: u32,
         m: &'static [u8],
-        mac: &'static u32,
+        mac: u32,
     }
 
     /// Test Set 1
