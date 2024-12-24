@@ -241,8 +241,6 @@ mod tests {
         let examples = [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3, &EXAMPLE4, &EXAMPLE5];
         for x in examples {
             let mac = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length, x.m);
-            println!("1");
-            println!("{:x} {:x}", x.mac, &mac);
             assert_eq!(&mac, x.mac);
         }
     }
