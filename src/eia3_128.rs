@@ -23,6 +23,8 @@ pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 
     assert!(bitlen <= m.len() * 8);
     let mut zuc = Zuc128Core::new(ik, iv);
     let mut current_key = zuc.generate();
+    let mut current_m: &u8 = &0;
+    let mut left_m = m;
     let mut t: u32 = 0;
     let l = (length + 31) / 32 + 2;
     let last_update_idx = 32 * (l - 1) as usize;
@@ -32,18 +34,20 @@ pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 
     let chunks = last_update_idx / 32;
 
     let mut i = 0;
-    let mut m_idx = 0;
     let mut bitlen_flag = true;
     for _ in 0..chunks {
         let mut next_key = zuc.generate();
         for _ in 0..4 {
             let mut bit_mask = 0b1000_0000;
+            if bitlen_flag {
+                (current_m, left_m) = left_m.split_first().unwrap();
+            }
             for _ in 0..8 {
                 if bitlen_flag {
                     if i == bitlen {
                         bitlen_flag = false;
                         t ^= current_key;
-                    } else if (m[m_idx] & bit_mask) != 0 {
+                    } else if (current_m & bit_mask) != 0 {
                         t ^= current_key;
                     }
                     i += 1;
@@ -53,8 +57,6 @@ pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 
                 current_key = (current_key << 1) | (next_key >> 31);
                 next_key <<= 1;
             }
-
-            m_idx += 1;
         }
     }
 
