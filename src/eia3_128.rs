@@ -2,29 +2,6 @@
 
 use crate::Zuc128Core;
 
-/// BIT MASK for u8 from big end
-static BIT_MASK_8: [u8; 8] = [
-    0b1000_0000,
-    0b0100_0000,
-    0b0010_0000,
-    0b0001_0000,
-    0b0000_1000,
-    0b0000_0100,
-    0b0000_0010,
-    0b0000_0001,
-];
-
-/// find word
-fn find_word(keys: &[u32], i: usize) -> u32 {
-    let j = i >> 5;
-    let m = i & 0x1f;
-    if m == 0 {
-        keys[j]
-    } else {
-        (keys[j] << m) | (keys[j + 1] >> (32 - m))
-    }
-}
-
 /// ZUC generate MAC algorithm
 /// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
 ///
@@ -45,21 +22,36 @@ pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 
     let bitlen = usize::try_from(length).expect("bit length overflow");
     assert!(bitlen <= m.len() * 8);
     let mut zuc = Zuc128Core::new(ik, iv);
-    let key_length = (length + 31) / 32 + 2;
-    let mut keys = Vec::with_capacity(key_length as usize);
-    keys.extend((0..key_length).map(|_| zuc.generate()));
+    let l = (length + 31) / 32 + 2;
+    let mut current_key = zuc.generate();
+    let mut next_key: u32 = 0;
     let mut t: u32 = 0;
-    for i in 0..length as usize {
-        let i_byte = i / 8;
-        let i_bit = i % 8;
-        if let Some(ele) = m.get(i_byte) {
-            if (ele & BIT_MASK_8[i_bit]) != 0 {
-                t ^= find_word(&keys, i);
+    let mut bit_mask: u8 = 0;
+    let last_update_idx = 32 * (l - 1) as usize;
+    for i in 0..=last_update_idx {
+        if i % 8 == 0 {
+            bit_mask = 0b1000_0000;
+            if i % 32 == 0 {
+                next_key = zuc.generate();
             }
+        };
+
+        let should_update = if i == bitlen || i == last_update_idx {
+            true
+        } else if i > bitlen {
+            false
+        } else {
+            (m[i / 8] & bit_mask) != 0
+        };
+
+        if should_update {
+            t ^= current_key;
         }
+
+        bit_mask >>= 1;
+        current_key = (current_key << 1) | (next_key >> 31);
+        next_key <<= 1;
     }
-    t ^= find_word(&keys, length as usize);
-    t ^= find_word(&keys, (32 * (key_length - 1)) as usize);
     t
 }
 
