@@ -29,4 +29,5 @@ Documentation: <https://docs.rs/zuc>
 - **ZUC 256 New Initialization**: [ZUC256-new-initialization](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020230201389233346416.pdf) (unimplemented)
 
 ## Contributing
+
 + [Development Guide](./CONTRIBUTING.md)

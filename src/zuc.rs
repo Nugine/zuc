@@ -117,6 +117,7 @@ impl Zuc {
     /// F non-linear function
     fn f(&mut self, x: [u32; 4]) -> u32 {
         let Self { r1, r2, .. } = self;
+
         let w = add(x[0] ^ (*r1), *r2);
         let w1 = add(*r1, x[1]);
         let w2 = (*r2) ^ x[2];
