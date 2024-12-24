@@ -22,36 +22,44 @@ pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 
     let bitlen = usize::try_from(length).expect("bit length overflow");
     assert!(bitlen <= m.len() * 8);
     let mut zuc = Zuc128Core::new(ik, iv);
-    let l = (length + 31) / 32 + 2;
     let mut current_key = zuc.generate();
-    let mut next_key: u32 = 0;
     let mut t: u32 = 0;
-    let mut bit_mask: u8 = 0;
+    let l = (length + 31) / 32 + 2;
     let last_update_idx = 32 * (l - 1) as usize;
-    for i in 0..=last_update_idx {
-        if i % 8 == 0 {
-            bit_mask = 0b1000_0000;
-            if i % 32 == 0 {
-                next_key = zuc.generate();
+    // last_update_idx = length.ceiling(32) + 32
+    // remaining = (last_update_idx+1) % 32 === 1
+
+    let chunks = last_update_idx / 32;
+
+    let mut i = 0;
+    let mut m_idx = 0;
+    let mut bitlen_flag = true;
+    for _ in 0..chunks {
+        let mut next_key = zuc.generate();
+        for _ in 0..4 {
+            let mut bit_mask = 0b1000_0000;
+            for _ in 0..8 {
+                if bitlen_flag {
+                    if i == bitlen {
+                        bitlen_flag = false;
+                        t ^= current_key;
+                    } else if (m[m_idx] & bit_mask) != 0 {
+                        t ^= current_key;
+                    }
+                    i += 1;
+                }
+
+                bit_mask >>= 1;
+                current_key = (current_key << 1) | (next_key >> 31);
+                next_key <<= 1;
             }
-        };
 
-        let should_update = if i == bitlen || i == last_update_idx {
-            true
-        } else if i > bitlen {
-            false
-        } else {
-            (m[i / 8] & bit_mask) != 0
-        };
-
-        if should_update {
-            t ^= current_key;
+            m_idx += 1;
         }
-
-        bit_mask >>= 1;
-        current_key = (current_key << 1) | (next_key >> 31);
-        next_key <<= 1;
     }
+
+    t ^= current_key;
+
     t
 }
 
