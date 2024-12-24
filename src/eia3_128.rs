@@ -135,7 +135,7 @@ mod tests {
         direction: 0,
         length: 1,
         m: &hex!("00000000"),
-        mac: &0xc8a9_595e,
+        mac: 0xc8a9_595e,
     };
 
     /// Test Set 2
@@ -150,7 +150,7 @@ mod tests {
         direction: 0,
         length: 90,
         m: &hex!("00000000 00000000 00000000"),
-        mac: &0x6719_a088,
+        mac: 0x6719_a088,
     };
 
     /// Test Set 3
@@ -169,7 +169,7 @@ mod tests {
             "7e941b7b e91348f9 fcb170e2 217fecd9 7f9f68ad b16e5d7d 21e569d2 80ed775c ",
             "ebde3f40 93c53881 00000000"
         ]),
-        mac: &0xfae8_ff0b,
+        mac: 0xfae8_ff0b,
     };
 
     /// Test Set 4
@@ -194,7 +194,7 @@ mod tests {
             "15cc1a85 b36b5501 046e9c4b dcae5135 690b8666 bd54b7a7 03ea7b6f 220a5469",
             "a568027e "
         ]),
-        mac: &0x004a_c4d6,
+        mac: 0x004a_c4d6,
     };
 
     /// Test Set 5
@@ -233,7 +233,7 @@ mod tests {
             "d9cd9578 08f08571 d9a4bb79 2af271f6 cc6dbb8d c7ec36e3 6be1ed30 8164c31c",
             "7c0afc54 1c000000 "
         ]),
-        mac: &0x0ca1_2792,
+        mac: 0x0ca1_2792,
     };
 
     #[test]
@@ -241,7 +241,7 @@ mod tests {
         let examples = [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3, &EXAMPLE4, &EXAMPLE5];
         for x in examples {
             let mac = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length, x.m);
-            assert_eq!(&mac, x.mac);
+            assert_eq!(mac, x.mac);
         }
     }
 
