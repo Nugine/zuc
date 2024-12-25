@@ -257,15 +257,17 @@ mod tests {
     #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn full_bitlen() {
-        let x = &EXAMPLE2;
+        let x = &EXAMPLE5;
         let length = x.m.len() as u32 * 8;
-        let _ = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        let mac = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        assert_eq!(mac, 0x2592_99ab); // generated from GmSSL
     }
 
     #[test]
     fn zero_bitlen() {
-        let x = &EXAMPLE2;
+        let x = &EXAMPLE5;
         let length = 0;
-        let _ = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        let mac = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        assert_eq!(mac, 0x0787_bab1); // generated from GmSSL
     }
 }
