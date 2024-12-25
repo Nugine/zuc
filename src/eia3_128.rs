@@ -253,4 +253,19 @@ mod tests {
         let x = &EXAMPLE2;
         let _ = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length * 2, x.m);
     }
+
+    #[allow(clippy::cast_possible_truncation)]
+    #[test]
+    fn full_bitlen() {
+        let x = &EXAMPLE2;
+        let length = x.m.len() as u32 * 8;
+        let _ = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+    }
+
+    #[test]
+    fn zero_bitlen() {
+        let x = &EXAMPLE2;
+        let length = 0;
+        let _ = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+    }
 }
