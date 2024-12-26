@@ -2,6 +2,19 @@
 
 use crate::Zuc128Core;
 
+/// t xor keystream in EIA3
+#[inline(always)]
+fn eia3_xor_t(bits: &mut u32, key: &mut u64, t: &mut u32) {
+    let k = if *bits & 0x8000_0000 != 0 {
+        (*key >> 32) as u32
+    } else {
+        0
+    };
+    *t ^= k;
+    *bits <<= 1;
+    *key <<= 1;
+}
+
 /// ZUC generate MAC algorithm
 /// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
 ///
@@ -17,50 +30,56 @@ use crate::Zuc128Core;
 /// # Panics
 /// + Panics if `length` is greater than the length of `m`
 /// + Panics if `length` is greater than `usize::MAX`.
+#[allow(clippy::cast_possible_truncation)]
 #[must_use]
 pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 {
-    let bitlen = usize::try_from(length).expect("bit length overflow");
-    assert!(bitlen <= m.len() * 8);
+    let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
+    assert!(
+        bitlen <= m.len() * 8,
+        "`length` is greater than the length of `m`"
+    );
+
     let mut zuc = Zuc128Core::new(ik, iv);
-    let mut current_key = zuc.generate();
-    let mut current_m: &u8 = &0;
-    let mut left_m = m;
+
     let mut t: u32 = 0;
-    let l = (length + 31) / 32 + 2;
-    let last_update_idx = 32 * (l - 1) as usize;
-    // last_update_idx = length.ceiling(32) + 32
-    // remaining = (last_update_idx+1) % 32 === 1
 
-    let chunks = last_update_idx / 32;
+    let mut key = {
+        let k0 = zuc.generate();
+        let k1 = zuc.generate();
+        (u64::from(k0) << 32) | u64::from(k1)
+    };
 
-    let mut i = 0;
-    let mut bitlen_flag = true;
-    for _ in 0..chunks {
-        let mut next_key = zuc.generate();
-        for _ in 0..4 {
-            let mut bit_mask = 0b1000_0000;
-            if bitlen_flag {
-                (current_m, left_m) = left_m.split_first().unwrap();
-            }
-            for _ in 0..8 {
-                if bitlen_flag {
-                    if i == bitlen {
-                        bitlen_flag = false;
-                        t ^= current_key;
-                    } else if (current_m & bit_mask) != 0 {
-                        t ^= current_key;
-                    }
-                    i += 1;
-                }
+    for chunk in m[..(bitlen / 32 * 4)].chunks_exact(4) {
+        let mut bits = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
 
-                bit_mask >>= 1;
-                current_key = (current_key << 1) | (next_key >> 31);
-                next_key <<= 1;
-            }
+        for _ in 0..32 {
+            eia3_xor_t(&mut bits, &mut key, &mut t);
         }
+
+        key |= u64::from(zuc.generate());
     }
 
-    t ^= current_key;
+    if bitlen % 32 == 0 {
+        t ^= (key >> 32) as u32;
+        t ^= key as u32;
+    } else {
+        let i = bitlen / 32 * 4;
+
+        let mut bits = match (bitlen % 32) / 8 {
+            0 => u32::from_be_bytes([m[i], 0, 0, 0]),
+            1 => u32::from_be_bytes([m[i], m[i + 1], 0, 0]),
+            2 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], 0]),
+            3 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], m[i + 3]]),
+            _ => unreachable!(),
+        };
+
+        for _ in 0..(bitlen % 32) {
+            eia3_xor_t(&mut bits, &mut key, &mut t);
+        }
+
+        t ^= (key >> 32) as u32;
+        t ^= zuc.generate();
+    }
 
     t
 }
@@ -247,7 +266,7 @@ mod tests {
         }
     }
 
-    #[should_panic(expected = "assertion failed: bitlen <= m.len() * 8")]
+    #[should_panic(expected = "`length` is greater than the length of `m`")]
     #[test]
     fn invalid_input() {
         let x = &EXAMPLE2;
