@@ -1,8 +1,62 @@
 //! ZUC-256 Algorithms
 
-use crate::zuc::Zuc;
-
+use crate::utils::Uint256;
+use crate::zuc::{Zuc, ZucFromBytes};
 use cipher::consts::{U1, U23, U32, U4};
+use std::ops::{BitOr, Shl};
+
+/// zuc generate keystream for 64bit
+#[inline(always)]
+fn zuc256_generate_2words<T>(zuc: &mut Zuc256Core) -> T
+where
+    T: From<u32> + Shl<usize, Output = T> + BitOr<Output = T>,
+{
+    (T::from(zuc.generate()) << 32) | T::from(zuc.generate())
+}
+/// zuc generate keystream for 128bit
+#[inline(always)]
+fn zuc256_generate_4words(zuc: &mut Zuc256Core) -> u128 {
+    (u128::from(zuc.generate()) << 96)
+        | (u128::from(zuc.generate()) << 64)
+        | (u128::from(zuc.generate()) << 32)
+        | u128::from(zuc.generate())
+}
+/// t xor keystream for 32bit
+#[inline(always)]
+fn zuc256_xor_t_32(bits: &mut u32, key: &mut u64, tag: &mut u32) {
+    let k = if *bits & 0x8000_0000 != 0 {
+        (*key >> 32) as u32
+    } else {
+        0
+    };
+    *tag ^= k;
+    *bits <<= 1;
+    *key <<= 1;
+}
+/// t xor keystream for 64bit
+#[inline(always)]
+fn zuc256_xor_t_64(bits: &mut u64, key: &mut u128, tag: &mut u64) {
+    let k = if *bits & 0x8000_0000_0000_0000 != 0 {
+        (*key >> 64) as u64
+    } else {
+        0
+    };
+    *tag ^= k;
+    *bits <<= 1;
+    *key <<= 1;
+}
+/// t xor keystream for 64bit
+#[inline(always)]
+fn zuc256_xor_t_128(bits: &mut u128, key: &mut Uint256, tag: &mut u128) {
+    let k = if *bits & 0x8000_0000_0000_0000_0000_0000_0000_0000 != 0 {
+        key.high
+    } else {
+        0
+    };
+    *tag ^= k;
+    *bits <<= 1;
+    *key <<= 1;
+}
 
 /// d constants
 static D: [u8; 16] = [
@@ -24,36 +78,25 @@ static D: [u8; 16] = [
     0b_0011_0000, //
 ];
 
-// /// mac 32bit
-// #[allow(unused_variables, dead_code)]
-// pub static MAC_256_32: [u8; 16] = [
-//     0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
-//     0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
-// ];
+/// mac 32bit d constants
+pub static MAC_256_32: [u8; 16] = [
+    0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
+    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
+];
 
-// /// mac 64bit
-// #[allow(unused_variables, dead_code)]
-// pub static MAC_256_64: [u8; 16] = [
-//     0b010_0011, 0b010_1111, 0b010_0100, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
-//     0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
-// ];
+/// mac 64bit d constants
+#[allow(unused_variables, dead_code)]
+pub static MAC_256_64: [u8; 16] = [
+    0b010_0011, 0b010_1111, 0b010_0100, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
+    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
+];
 
-// /// mac 128bit
-// #[allow(unused_variables, dead_code)]
-// pub static MAC_256_128: [u8; 16] = [
-//     0b010_0011, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
-//     0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
-// ];
-
-// /// mac length
-// pub enum MacLength {
-//     /// 32 bit
-//     Bit32,
-//     /// 64 bit
-//     Bit64,
-//     /// 128 bit
-//     Bit128,
-// }
+/// mac 128bit d constants
+#[allow(unused_variables, dead_code)]
+pub static MAC_256_128: [u8; 16] = [
+    0b010_0011, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
+    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
+];
 
 /// concat u8 bits to 31bit u32
 fn concat_bits(a: u8, b: u8, c: u8, d: u8) -> u32 {
@@ -76,9 +119,13 @@ impl Zuc256Core {
     /// Creates a ZUC256 keystream generator
     #[must_use]
     pub fn new(k: &[u8; 32], iv: &[u8; 23]) -> Self {
-        let mut zuc = Zuc::zeroed();
         let d = &D;
+        Zuc256Core::new_with_d(k, iv, d)
+    }
 
+    /// new zuc 256 with specific d constants
+    fn new_with_d(k: &[u8; 32], iv: &[u8; 23], d: &[u8; 16]) -> Self {
+        let mut zuc = Zuc::zeroed();
         // extend from 184bit iv[0..=22] (u8*23) to iv[0..=24](8bit*17 + 6bit *8)
         let iv17: u8 = iv[17] >> 2;
         let iv18: u8 = ((iv[17] & 0x3) << 4) | (iv[18] >> 4);
@@ -110,8 +157,173 @@ impl Zuc256Core {
     }
 
     ///  Generates the next 32-bit word in ZUC256 keystream
+    #[must_use]
     pub fn generate(&mut self) -> u32 {
         self.core.generate()
+    }
+    /// ZUC generate MAC algorithm
+    ///  Generates the 32-bit word MAC from ZUC256 keystream
+    /// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
+    ///
+    /// Input:
+    /// - `ik`:         128bit  integrity key
+    /// - `iv`:         128bit  initial vector
+    /// - `length`:     32bit   The number of bits to be encrypted/decrypted.
+    /// - `m`:          the input message
+    ///
+    /// Output:
+    /// - `u32`:        MAC(Message Authentication Code)
+    ///
+    /// # Panics
+    /// + Panics if `length` is greater than the length of `m`
+    /// + Panics if `length` is greater than `usize::MAX`.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn generate_mac_32(ik: &[u8; 32], iv: &[u8; 23], length: u32, m: &[u8]) -> u32 {
+        let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
+        assert!(
+            bitlen <= m.len() * 8,
+            "`length` is greater than the length of `m`"
+        );
+        let d = &MAC_256_32;
+        let t: usize = 32;
+        let t_byte: usize = 4;
+        let mut zuc = Zuc256Core::new_with_d(ik, iv, d);
+        let mut tag: u32 = zuc.generate();
+        let mut key = zuc256_generate_2words(&mut zuc);
+        for chunk in m[..(bitlen / 8)].chunks_exact(t_byte) {
+            let mut bits = u32::from_be_bytes(chunk[0..t_byte].try_into().expect("impossible"));
+
+            for _ in 0..t {
+                zuc256_xor_t_32(&mut bits, &mut key, &mut tag);
+            }
+
+            key |= u64::from(zuc.generate());
+        }
+        if bitlen % t == 0 {
+            tag ^= (key >> t) as u32;
+        } else {
+            let mut bits = u32::get_zuc_remaining_bits(bitlen, m);
+            for _ in 0..(bitlen % t) {
+                zuc256_xor_t_32(&mut bits, &mut key, &mut tag);
+            }
+            tag ^= (key >> t) as u32;
+        }
+
+        tag
+    }
+
+    /// ZUC generate MAC algorithm
+    ///  Generates the 64-bit word MAC from ZUC256 keystream
+    /// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
+    ///
+    /// Input:
+    /// - `ik`:         128bit  integrity key
+    /// - `iv`:         128bit  initial vector
+    /// - `length`:     32bit   The number of bits to be encrypted/decrypted.
+    /// - `m`:          the input message
+    ///
+    /// Output:
+    /// - `u32`:        MAC(Message Authentication Code)
+    ///
+    /// # Panics
+    /// + Panics if `length` is greater than the length of `m`
+    /// + Panics if `length` is greater than `usize::MAX`.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn generate_mac_64(ik: &[u8; 32], iv: &[u8; 23], length: u32, m: &[u8]) -> u64 {
+        let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
+        assert!(
+            bitlen <= m.len() * 8,
+            "`length` is greater than the length of `m`"
+        );
+        let t: usize = 64;
+        let t_byte: usize = 8;
+        let d = &MAC_256_64;
+        let mut zuc = Zuc256Core::new_with_d(ik, iv, d);
+        let mut tag: u64 = zuc256_generate_2words(&mut zuc);
+        let mut key: u128 = zuc256_generate_4words(&mut zuc);
+        for chunk in m[..(bitlen / 8)].chunks_exact(t_byte) {
+            let mut bits = u64::from_be_bytes(chunk[0..t_byte].try_into().expect("impossible"));
+
+            for _ in 0..t {
+                zuc256_xor_t_64(&mut bits, &mut key, &mut tag);
+            }
+
+            key |= zuc256_generate_2words::<u128>(&mut zuc);
+        }
+        if bitlen % t == 0 {
+            tag ^= (key >> t) as u64;
+        } else {
+            let mut bits = u64::get_zuc_remaining_bits(bitlen, m);
+
+            for _ in 0..(bitlen % t) {
+                zuc256_xor_t_64(&mut bits, &mut key, &mut tag);
+            }
+
+            tag ^= (key >> t) as u64;
+        }
+
+        tag
+    }
+
+    /// ZUC generate MAC algorithm
+    ///  Generates the 128-bit word MAC from ZUC256 keystream
+    /// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
+    ///
+    /// Input:
+    /// - `ik`:         128bit  integrity key
+    /// - `iv`:         128bit  initial vector
+    /// - `length`:     32bit   The number of bits to be encrypted/decrypted.
+    /// - `m`:          the input message
+    ///
+    /// Output:
+    /// - `u32`:        MAC(Message Authentication Code)
+    ///
+    /// # Panics
+    /// + Panics if `length` is greater than the length of `m`
+    /// + Panics if `length` is greater than `usize::MAX`.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn generate_mac_128(ik: &[u8; 32], iv: &[u8; 23], length: u32, m: &[u8]) -> u128 {
+        let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
+        assert!(
+            bitlen <= m.len() * 8,
+            "`length` is greater than the length of `m`"
+        );
+        let d = &MAC_256_128;
+        let t: usize = 128;
+        let t_byte: usize = 16;
+        let mut zuc = Zuc256Core::new_with_d(ik, iv, d);
+        let mut tag: u128 = zuc256_generate_4words(&mut zuc);
+        let mut key: Uint256 = Uint256::new(
+            zuc256_generate_4words(&mut zuc),
+            zuc256_generate_4words(&mut zuc),
+        );
+
+        for chunk in m[..(bitlen / 8)].chunks_exact(t_byte) {
+            let mut bits = u128::from_be_bytes(chunk[0..t_byte].try_into().expect("impossible"));
+
+            for _ in 0..t {
+                zuc256_xor_t_128(&mut bits, &mut key, &mut tag);
+            }
+
+            key.low = zuc256_generate_4words(&mut zuc);
+        }
+
+        if bitlen % t == 0 {
+            tag ^= key.high;
+        } else {
+            let mut bits = u128::get_zuc_remaining_bits(bitlen, m);
+
+            for _ in 0..(bitlen % t) {
+                zuc256_xor_t_128(&mut bits, &mut key, &mut tag);
+            }
+
+            tag ^= key.high;
+        }
+
+        tag
     }
 }
 
@@ -171,6 +383,7 @@ impl cipher::StreamCipherCore for Zuc256Core {
 
 #[cfg(test)]
 mod tests {
+
     use crate::Zuc256Core;
 
     // examples from http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf
@@ -178,6 +391,16 @@ mod tests {
         k: [u8; 32],
         iv: [u8; 23],
         expected: [u32; 20],
+    }
+    // examples from http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf
+    struct ExampleMAC {
+        k: [u8; 32],
+        iv: [u8; 23],
+        length: u32,
+        m: &'static [u8],
+        expected_32: u32,
+        expected_64: u64,
+        expected_128: u128,
     }
 
     static EXAMPLE1: Example = Example {
@@ -233,6 +456,44 @@ mod tests {
             0xb8fa_c8c2,
         ],
     };
+    static EXAMPLE_MAC_1: ExampleMAC = ExampleMAC {
+        k: [0; 32],
+        iv: [0; 23],
+        length: 400,
+        m: &[0; 50],
+        expected_32: 0x9b97_2a74,
+        expected_64: 0x673e_5499_0034_d38c,
+        expected_128: 0xd85e_54bb_cb96_0096_7084_c952_a165_4b26,
+    };
+
+    static EXAMPLE_MAC_2: ExampleMAC = ExampleMAC {
+        k: [0; 32],
+        iv: [0; 23],
+        length: 4000,
+        m: &[0x11; 500],
+        expected_32: 0x8754_f5cf,
+        expected_64: 0x130d_c225_e722_40cc,
+        expected_128: 0xdf1e_8307_b31c_c62b_eca1_ac6f_8190_c22f,
+    };
+    static EXAMPLE_MAC_3: ExampleMAC = ExampleMAC {
+        k: [0xff; 32],
+        iv: [0xff; 23],
+        length: 400,
+        m: &[0x00; 50],
+        expected_32: 0x1f30_79b4,
+        expected_64: 0x8c71_394d_3995_7725,
+        expected_128: 0xa35b_b274_b567_c48b_2831_9f11_1af3_4fbd,
+    };
+
+    static EXAMPLE_MAC_4: ExampleMAC = ExampleMAC {
+        k: [0xff; 32],
+        iv: [0xff; 23],
+        length: 4000,
+        m: &[0x11; 500],
+        expected_32: 0x5c7_c8b88,
+        expected_64: 0xea1d_ee54_4bb6_223b,
+        expected_128: 0x3a83_b554_be40_8ca5_4941_24ed_9d47_3205,
+    };
 
     #[test]
     fn examples() {
@@ -241,6 +502,30 @@ mod tests {
             for i in 0..expected.len() {
                 assert_eq!(zuc.generate(), expected[i]);
             }
+        }
+    }
+    #[test]
+    fn examples_mac() {
+        for ExampleMAC {
+            k,
+            iv,
+            length,
+            m,
+            expected_32,
+            expected_64,
+            expected_128,
+        } in [
+            &EXAMPLE_MAC_2,
+            &EXAMPLE_MAC_3,
+            &EXAMPLE_MAC_4,
+            &EXAMPLE_MAC_1,
+        ] {
+            let mac_32 = Zuc256Core::generate_mac_32(k, iv, *length, m);
+            let mac_64 = Zuc256Core::generate_mac_64(k, iv, *length, m);
+            let mac_128 = Zuc256Core::generate_mac_128(k, iv, *length, m);
+            assert_eq!(mac_32, *expected_32);
+            assert_eq!(mac_64, *expected_64);
+            assert_eq!(mac_128, *expected_128);
         }
     }
 
