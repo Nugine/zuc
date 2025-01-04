@@ -3,23 +3,6 @@ use crate::utils::Uint256;
 use crate::zuc256::Zuc256Core;
 use std::ops::{BitAnd, BitXorAssign, ShlAssign, ShrAssign};
 
-/// mac 32bit d constants
-pub static MAC_256_32: [u8; 16] = [
-    0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
-    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
-];
-
-/// mac 64bit d constants
-pub static MAC_256_64: [u8; 16] = [
-    0b010_0011, 0b010_1111, 0b010_0100, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
-    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
-];
-
-/// mac 128bit d constants
-pub static MAC_256_128: [u8; 16] = [
-    0b010_0011, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
-    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
-];
 /// Sealed trait
 pub trait Sealed {}
 impl Sealed for u32 {}
@@ -78,7 +61,11 @@ where
 
 impl Zuc256MACType<u32> for u32 {
     type KeyType = u64;
-    const D: [u8; 16] = MAC_256_32;
+    const D: [u8; 16] = [
+        0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000,
+        0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010,
+        0b001_0000, 0b011_0000,
+    ];
     const HIGH_BIT: u32 = 0x8000_0000;
     fn from_chunk(chunk: &[u8]) -> u32 {
         u32::from_be_bytes(chunk[0..u32::BYTE_SIZE].try_into().expect("impossible"))
@@ -97,7 +84,11 @@ impl Zuc256MACType<u32> for u32 {
 
 impl Zuc256MACType<u64> for u64 {
     type KeyType = u128;
-    const D: [u8; 16] = MAC_256_64;
+    const D: [u8; 16] = [
+        0b010_0011, 0b010_1111, 0b010_0100, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000,
+        0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010,
+        0b001_0000, 0b011_0000,
+    ];
     const HIGH_BIT: u64 = 0x8000_0000_0000_0000;
     fn generate_word(zuc: &mut Zuc256Core) -> u64 {
         (u64::from(zuc.generate()) << 32) | u64::from(zuc.generate())
@@ -116,7 +107,11 @@ impl Zuc256MACType<u64> for u64 {
 
 impl Zuc256MACType<u128> for u128 {
     type KeyType = Uint256;
-    const D: [u8; 16] = MAC_256_128;
+    const D: [u8; 16] = [
+        0b010_0011, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000,
+        0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010,
+        0b001_0000, 0b011_0000,
+    ];
     const HIGH_BIT: u128 = 0x8000_0000_0000_0000_0000_0000_0000_0000;
     fn generate_word(zuc: &mut Zuc256Core) -> u128 {
         (u128::from(zuc.generate()) << 96)
