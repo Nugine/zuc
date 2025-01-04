@@ -3,15 +3,20 @@ use crate::utils::Uint256;
 use crate::zuc256::Zuc256Core;
 use std::ops::{BitAnd, BitXorAssign, ShlAssign, ShrAssign};
 
-/// Sealed trait
-pub trait Sealed {}
-impl Sealed for u32 {}
-impl Sealed for u64 {}
-impl Sealed for u128 {}
-impl Sealed for Uint256 {}
+mod private {
+    //! private for sealed trait
+    use crate::utils::Uint256;
+
+    /// Sealed trait
+    pub trait Sealed {}
+    impl Sealed for u32 {}
+    impl Sealed for u64 {}
+    impl Sealed for u128 {}
+    impl Sealed for Uint256 {}
+}
 
 /// trait for mac type (u32, u64, u128)
-pub trait Zuc256MACType<T>: Sized + Sealed
+pub trait Zuc256MACType<T>: Sized + private::Sealed
 where
     T: BitXorAssign<T>
         + BitAnd<Output = T>
@@ -133,7 +138,7 @@ impl Zuc256MACType<u128> for u128 {
 }
 
 /// trait for zuc 256 mac key transform
-pub trait Zuc256MACKeyTransform: Sealed {
+pub trait Zuc256MACKeyTransform: private::Sealed {
     /// half of Key (T)
     type Half;
     /// high word from zuc 256 key
