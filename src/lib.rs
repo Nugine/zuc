@@ -21,7 +21,7 @@
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-mod utils;
+mod u256;
 mod zuc;
 
 mod zuc128;

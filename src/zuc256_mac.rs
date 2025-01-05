@@ -1,11 +1,11 @@
 //! ZUC-256 Algorithms MAC generate
-use crate::utils::U256;
+use crate::u256::U256;
 use crate::zuc256::Zuc256Core;
 use std::ops::{BitAnd, BitXorAssign, ShlAssign, ShrAssign};
 
 mod private {
     //! private for sealed trait
-    use crate::utils::U256;
+    use crate::u256::U256;
 
     /// Sealed trait
     pub trait Sealed {}
