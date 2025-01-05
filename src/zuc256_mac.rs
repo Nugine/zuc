@@ -275,6 +275,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::zuc256_generate_mac;
+
     // examples from http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf
     struct ExampleMAC {
         k: [u8; 32],
@@ -328,26 +329,22 @@ mod tests {
 
     #[test]
     fn examples_mac() {
-        for ExampleMAC {
-            k,
-            iv,
-            length,
-            m,
-            expected_32,
-            expected_64,
-            expected_128,
-        } in [
+        let examples = [
+            &EXAMPLE_MAC_1,
             &EXAMPLE_MAC_2,
             &EXAMPLE_MAC_3,
             &EXAMPLE_MAC_4,
-            &EXAMPLE_MAC_1,
-        ] {
-            let mac_32 = zuc256_generate_mac::<u32>(k, iv, *length, m);
-            assert_eq!(mac_32, *expected_32);
-            let mac_64 = zuc256_generate_mac::<u64>(k, iv, *length, m);
-            assert_eq!(mac_64, *expected_64);
-            let mac_128 = zuc256_generate_mac::<u128>(k, iv, *length, m);
-            assert_eq!(mac_128, *expected_128);
+        ];
+
+        for x in examples {
+            let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, x.length, x.m);
+            assert_eq!(mac_32, x.expected_32);
+
+            let mac_64 = zuc256_generate_mac::<u64>(&x.k, &x.iv, x.length, x.m);
+            assert_eq!(mac_64, x.expected_64);
+
+            let mac_128 = zuc256_generate_mac::<u128>(&x.k, &x.iv, x.length, x.m);
+            assert_eq!(mac_128, x.expected_128);
         }
     }
 }
