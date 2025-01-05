@@ -13,21 +13,23 @@ pub fn add(a: u32, b: u32) -> u32 {
 pub fn rol(x: u32, n: u32) -> u32 {
     x.rotate_left(n)
 }
-/// BE Uint 256 simple implement for zuc256
-pub struct Uint256 {
-    /// high 128bit of be uint 256
+
+/// 256-bit unsigned integer
+pub struct U256 {
+    /// high 128 bits
     pub high: u128,
-    /// low 128bit of be uint 256
+    /// low 128 bits
     pub low: u128,
 }
 
-impl Uint256 {
-    /// new uint256  for two u128
+impl U256 {
+    /// Create a [`U256`] from two u128
     pub fn new(high: u128, low: u128) -> Self {
-        Uint256 { high, low }
+        U256 { high, low }
     }
 }
-impl ShlAssign<usize> for Uint256 {
+
+impl ShlAssign<usize> for U256 {
     fn shl_assign(&mut self, rhs: usize) {
         if rhs >= 256 {
             self.high = 0;

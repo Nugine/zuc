@@ -1,18 +1,18 @@
 //! ZUC-256 Algorithms MAC generate
-use crate::utils::Uint256;
+use crate::utils::U256;
 use crate::zuc256::Zuc256Core;
 use std::ops::{BitAnd, BitXorAssign, ShlAssign, ShrAssign};
 
 mod private {
     //! private for sealed trait
-    use crate::utils::Uint256;
+    use crate::utils::U256;
 
     /// Sealed trait
     pub trait Sealed {}
     impl Sealed for u32 {}
     impl Sealed for u64 {}
     impl Sealed for u128 {}
-    impl Sealed for Uint256 {}
+    impl Sealed for U256 {}
 }
 
 /// trait for mac type (u32, u64, u128)
@@ -111,7 +111,7 @@ impl Zuc256MACType<u64> for u64 {
 }
 
 impl Zuc256MACType<u128> for u128 {
-    type KeyType = Uint256;
+    type KeyType = U256;
     const D: [u8; 16] = [
         0b010_0011, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000,
         0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010,
@@ -190,7 +190,7 @@ impl Zuc256MACKeyTransform for u128 {
     }
 }
 
-impl Zuc256MACKeyTransform for Uint256 {
+impl Zuc256MACKeyTransform for U256 {
     type Half = u128;
     fn high(&self) -> u128 {
         self.high
@@ -198,8 +198,8 @@ impl Zuc256MACKeyTransform for Uint256 {
     fn low(&self) -> u128 {
         self.low
     }
-    fn new(high: u128, low: u128) -> Uint256 {
-        Uint256::new(high, low)
+    fn new(high: u128, low: u128) -> U256 {
+        U256::new(high, low)
     }
     fn set_low(&mut self, low: u128) {
         self.low = low;
