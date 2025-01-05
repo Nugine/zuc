@@ -2,7 +2,7 @@
 
 use crate::Zuc128Core;
 
-/// ZUC xor encryption algorithm
+/// ZUC128 xor encryption algorithm
 /// ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3))
 ///
 /// Input:
@@ -18,7 +18,7 @@ use crate::Zuc128Core;
 /// + Panics if `length` is greater than the length of `ibs` times 8.
 /// + Panics if `length` is greater than `usize::MAX`.
 #[must_use]
-pub fn xor_encrypt(ck: &[u8; 16], iv: &[u8; 16], length: u32, ibs: &[u8]) -> Vec<u8> {
+pub fn zuc128_xor_encrypt(ck: &[u8; 16], iv: &[u8; 16], length: u32, ibs: &[u8]) -> Vec<u8> {
     let bitlen = usize::try_from(length).expect("bit length overflow");
     assert!(bitlen <= ibs.len() * 8);
 
@@ -94,7 +94,7 @@ pub fn eea3_128_encrypt(
     iv[11] = iv[3];
     iv[12] = iv[4];
 
-    xor_encrypt(ck, &iv, length, ibs)
+    zuc128_xor_encrypt(ck, &iv, length, ibs)
 }
 
 #[cfg(test)]

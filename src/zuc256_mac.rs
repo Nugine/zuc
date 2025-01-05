@@ -206,8 +206,7 @@ impl Zuc256MACKeyTransform for U256 {
     }
 }
 
-/// ZUC generate MAC algorithm
-///  Generates the 128-bit word MAC from ZUC256 keystream
+/// ZUC256 MAC generation algorithm
 /// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
 ///
 /// Input:

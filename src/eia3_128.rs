@@ -17,7 +17,7 @@ fn eia3_xor_t(bits: &mut u32, key: &mut u64, t: &mut u32) {
     *key <<= 1;
 }
 
-/// ZUC generate MAC algorithm
+/// ZUC128 MAC generation algorithm
 /// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
 ///
 /// Input:
@@ -34,7 +34,7 @@ fn eia3_xor_t(bits: &mut u32, key: &mut u64, t: &mut u32) {
 /// + Panics if `length` is greater than `usize::MAX`.
 #[allow(clippy::cast_possible_truncation)]
 #[must_use]
-pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 {
+pub fn zuc128_generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 {
     let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
     assert!(
         bitlen <= m.len() * 8,
@@ -127,7 +127,7 @@ pub fn eia3_128_generate_mac(
     iv[11] = iv[3];
     iv[12] = iv[4];
     iv[14] = iv[6] ^ (direction << 7);
-    generate_mac(ik, &iv, length, m)
+    zuc128_generate_mac(ik, &iv, length, m)
 }
 
 #[cfg(test)]
