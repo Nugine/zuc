@@ -1,7 +1,5 @@
 //! ZUC shared implementation
 
-use crate::utils::{add, rol};
-
 /// S0 box
 static S0: [u8; 256] = const_str::hex!([
     "3E 72 5B 47 CA E0 00 33 04 D1 54 98 09 B9 6D CB",
@@ -41,6 +39,18 @@ static S1: [u8; 256] = const_str::hex!([
     "88 B1 98 7C F3 3D 60 6C 7B CA D3 1F 32 65 04 28",
     "64 BE 85 9B 2F 59 8A D7 B0 25 AC AF 12 03 E2 F2",
 ]);
+
+/// (a + b) mod (2^32)
+#[inline(always)]
+fn add(a: u32, b: u32) -> u32 {
+    a.wrapping_add(b)
+}
+
+/// rotate left
+#[inline(always)]
+fn rol(x: u32, n: u32) -> u32 {
+    x.rotate_left(n)
+}
 
 /// L1 linear transform
 #[inline(always)]
