@@ -1,6 +1,5 @@
 //! ZUC Confidentiality Algorithms
 
-use crate::zuc::ZucFromBytes;
 use crate::Zuc128Core;
 
 /// t xor keystream in EIA3
@@ -65,22 +64,15 @@ pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 
         t ^= (key >> 32) as u32;
         t ^= key as u32;
     } else {
-        // let i = bitlen / 32 * 4;
-        // let mut bytes = [0u8; 4];
-        // for j in 0..=(bitlen % 32 - 1) / 8 {
-        //     bytes[j] = m[i + j];
-        // }
-        // let mut bits = u32::from_be_bytes(bytes);
-        let mut bits = u32::get_zuc_remaining_bits(bitlen, m);
-        // 性能略低于原写法, 但原写法在u64,u128 里 过于冗长, -0.5%
+        let i = bitlen / 32 * 4;
 
-        // let mut bits = match (bitlen % 32 - 1) / 8 {
-        //     0 => u32::from_be_bytes([m[i], 0, 0, 0]),
-        //     1 => u32::from_be_bytes([m[i], m[i + 1], 0, 0]),
-        //     2 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], 0]),
-        //     3 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], m[i + 3]]),
-        //     _ => unreachable!(),
-        // };
+        let mut bits = match (bitlen % 32) / 8 {
+            0 => u32::from_be_bytes([m[i], 0, 0, 0]),
+            1 => u32::from_be_bytes([m[i], m[i + 1], 0, 0]),
+            2 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], 0]),
+            3 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], m[i + 3]]),
+            _ => unreachable!(),
+        };
 
         for _ in 0..(bitlen % 32) {
             eia3_xor_t(&mut bits, &mut key, &mut t);
