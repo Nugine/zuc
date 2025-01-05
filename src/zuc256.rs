@@ -1,6 +1,7 @@
 //! ZUC-256 Algorithms
 
 use crate::zuc::Zuc;
+
 use cipher::consts::{U1, U23, U32, U4};
 
 /// d constants
@@ -44,11 +45,10 @@ impl Zuc256Core {
     /// Creates a ZUC256 keystream generator
     #[must_use]
     pub fn new(k: &[u8; 32], iv: &[u8; 23]) -> Self {
-        let d = &D;
-        Zuc256Core::new_with_d(k, iv, d)
+        Zuc256Core::new_with_d(k, iv, &D)
     }
 
-    /// new zuc 256 with specific d constants
+    /// Creates a [`Zuc256Core`] with specific d constants
     pub(crate) fn new_with_d(k: &[u8; 32], iv: &[u8; 23], d: &[u8; 16]) -> Self {
         let mut zuc = Zuc::zeroed();
         // extend from 184bit iv[0..=22] (u8*23) to iv[0..=24](8bit*17 + 6bit *8)
@@ -144,7 +144,6 @@ impl cipher::StreamCipherCore for Zuc256Core {
 
 #[cfg(test)]
 mod tests {
-
     use crate::Zuc256Core;
 
     // examples from http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf
@@ -207,6 +206,7 @@ mod tests {
             0xb8fa_c8c2,
         ],
     };
+
     #[test]
     fn examples() {
         for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2] {
