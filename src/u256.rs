@@ -1,4 +1,4 @@
-//! Utilities
+//! 256-bit unsigned integer
 
 use std::ops::ShlAssign;
 
