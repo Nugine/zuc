@@ -17,6 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 cipher = "0.4.4"
 const-str = "0.5.7"
+std-next = "0.1.4"
 
 [dev-dependencies]
 criterion = "0.5.1"

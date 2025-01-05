@@ -2,6 +2,8 @@
 
 use crate::Zuc128Core;
 
+use stdx::slice::SliceExt;
+
 /// t xor keystream in EIA3
 #[inline(always)]
 fn eia3_xor_t(bits: &mut u32, key: &mut u64, t: &mut u32) {
@@ -49,9 +51,8 @@ pub fn generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 
         (u64::from(k0) << 32) | u64::from(k1)
     };
 
-    for chunk in m[..(bitlen / 32 * 4)].chunks_exact(4) {
-        let mut bits = u32::from_be_bytes(chunk[0..4].try_into().expect("impossible"));
-        // 这个看似更慢的操作似乎被编译器内联了, 性能在我的机器略高于原写法, 0.5%
+    for chunk in m[..(bitlen / 32 * 4)].as_chunks_::<4>().0 {
+        let mut bits = u32::from_be_bytes(*chunk);
 
         for _ in 0..32 {
             eia3_xor_t(&mut bits, &mut key, &mut t);
