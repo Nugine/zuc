@@ -3,6 +3,7 @@
 use std::ops::ShlAssign;
 
 /// 256-bit unsigned integer
+#[derive(Copy, Clone)]
 pub struct U256 {
     /// high 128 bits
     pub high: u128,
