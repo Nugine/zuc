@@ -117,7 +117,7 @@ impl MacWord for u64 {
     ];
     const HIGH_BIT: u64 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u64 {
-        u64::from(zuc()) << 32 | u64::from(zuc())
+        (u64::from(zuc()) << 32) | u64::from(zuc())
     }
     fn from_chunk(chunk: &[u8]) -> u64 {
         u64::from_be_bytes(chunk[0..Self::BYTE_SIZE].try_into().expect("impossible"))
@@ -129,7 +129,7 @@ impl MacKeyPair for u128 {
         (u128::from(zuc()) << 96)
             | (u128::from(zuc()) << 64)
             | (u128::from(zuc()) << 32)
-            | (u128::from(zuc()))
+            | u128::from(zuc())
     }
 
     fn high(&self) -> u64 {
@@ -150,9 +150,9 @@ impl MacWord for u128 {
     ];
     const HIGH_BIT: u128 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u128 {
-        u128::from(zuc()) << 96
-            | u128::from(zuc()) << 64
-            | u128::from(zuc()) << 32
+        (u128::from(zuc()) << 96)
+            | (u128::from(zuc()) << 64)
+            | (u128::from(zuc()) << 32)
             | u128::from(zuc())
     }
     fn from_chunk(chunk: &[u8]) -> u128 {
