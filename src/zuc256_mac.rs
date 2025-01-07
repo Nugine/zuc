@@ -96,7 +96,7 @@ impl MacWord for u32 {
 impl MacKeyPair for u64 {
     type Word = u32;
     fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> u64 {
-        u64::from(zuc()) << 32 | u64::from(zuc())
+        (u64::from(zuc()) << 32) | u64::from(zuc())
     }
 
     fn high(&self) -> u32 {
