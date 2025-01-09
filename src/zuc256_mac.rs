@@ -23,6 +23,7 @@ const D_128: [u8; 16] = [
 mod private {
     //! private for sealed trait
 
+    use std::mem::size_of;
     use std::ops::{BitXorAssign, ShlAssign};
 
     /// Mac Word
