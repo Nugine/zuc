@@ -315,7 +315,7 @@ mod tests {
         iv: [0xff; 23],
         length: 4000,
         m: &[0x11; 500],
-        expected_32: 0x5c7_c8b88,
+        expected_32: 0x5c7c_8b88,
         expected_64: 0xea1d_ee54_4bb6_223b,
         expected_128: 0x3a83_b554_be40_8ca5_4941_24ed_9d47_3205,
     };
@@ -338,6 +338,27 @@ mod tests {
 
             let mac_128 = zuc256_generate_mac::<u128>(&x.k, &x.iv, x.length, x.m);
             assert_eq!(mac_128, x.expected_128);
+        }
+    }
+
+    #[test]
+    fn special_bitlen() {
+        let x = &EXAMPLE_MAC_2;
+        let bitlen = 145;
+        let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, bitlen, x.m);
+        let expected_32 = 0x213e_1ce5; // generated from GmSSL
+        assert_eq!(mac_32, expected_32, "actual = {mac_32:08x}");
+    }
+
+    #[test]
+    fn zero_bitlen() {
+        let examples = [&EXAMPLE_MAC_1, &EXAMPLE_MAC_2];
+
+        for x in examples {
+            let bitlen = 0;
+            let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, bitlen, x.m);
+            let expected_32 = 0x68dc_aaba; // generated from GmSSL
+            assert_eq!(mac_32, expected_32, "actual = {mac_32:08x}");
         }
     }
 }
