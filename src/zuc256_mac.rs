@@ -90,7 +90,7 @@ impl MacWord for u32 {
     }
 
     fn test_high_bit(&self) -> bool {
-        let high_bit: u32 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
+        let high_bit: u32 = 1 << (Self::BIT_SIZE - 1);
         (*self & high_bit) != 0
     }
 }
@@ -128,7 +128,7 @@ impl MacWord for u64 {
     }
 
     fn test_high_bit(&self) -> bool {
-        let high_bit: u64 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
+        let high_bit: u64 = 1 << (Self::BIT_SIZE - 1);
         (*self & high_bit) != 0
     }
 }
@@ -169,7 +169,7 @@ impl MacWord for u128 {
     }
 
     fn test_high_bit(&self) -> bool {
-        let high_bit: u128 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
+        let high_bit: u128 = 1 << (Self::BIT_SIZE - 1);
         (*self & high_bit) != 0
     }
 }
