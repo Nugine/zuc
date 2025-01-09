@@ -34,24 +34,21 @@ mod private {
     {
         /// Mac Key Pair Type
         type KeyPair: MacKeyPair<Word = Self>;
-        /// byte size
-        const BYTE_SIZE: usize = std::mem::size_of::<Self>();
-        /// bit size
-        const BIT_SIZE: usize = std::mem::size_of::<Self>() * 8;
+
+        /// byte size of Self
+        const BYTE_SIZE: usize = size_of::<Self>();
+
+        /// bit size of Self
+        const BIT_SIZE: usize = size_of::<Self>() * 8;
 
         /// generate word
         fn gen_word(zuc: &mut impl FnMut() -> u32) -> Self;
 
-        /// generate key from chunk
+        /// convert key from big endian bytes
         fn from_chunk(chunk: &[u8]) -> Self;
 
-        /// Test the highest bit of the word
+        /// test the highest bit of the word
         fn test_high_bit(&self) -> bool;
-
-        /// Shift left by one bit
-        fn shl_once(&mut self) {
-            *self <<= 1;
-        }
     }
 
     /// Mac Key Pair
@@ -71,11 +68,6 @@ mod private {
 
         /// set low bits
         fn set_low(&mut self, low: Self::Word);
-
-        /// Shift left by one bit
-        fn shl_once(&mut self) {
-            *self <<= 1;
-        }
     }
 }
 
@@ -85,12 +77,18 @@ use self::private::MacWord;
 // 32 bit word
 impl MacWord for u32 {
     type KeyPair = u64;
+
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u32 {
         zuc()
     }
+
     fn from_chunk(chunk: &[u8]) -> u32 {
-        u32::from_be_bytes(chunk[0..Self::BYTE_SIZE].try_into().expect("impossible"))
+        match chunk.try_into() {
+            Ok(arr) => u32::from_be_bytes(arr),
+            Err(_) => unreachable!(),
+        }
     }
+
     fn test_high_bit(&self) -> bool {
         let high_bit: u32 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
         (*self & high_bit) != 0
@@ -100,12 +98,15 @@ impl MacWord for u32 {
 // key pair form 32 bit word
 impl MacKeyPair for u64 {
     type Word = u32;
+
     fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> u64 {
-        u64::gen_word(&mut || zuc())
+        u64::gen_word(zuc)
     }
+
     fn high(&self) -> u32 {
         (self >> 32) as u32
     }
+
     fn set_low(&mut self, low: Self::Word) {
         *self |= Self::from(low);
     }
@@ -114,12 +115,18 @@ impl MacKeyPair for u64 {
 // 64 bit word
 impl MacWord for u64 {
     type KeyPair = u128;
+
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u64 {
         (u64::from(zuc()) << 32) | u64::from(zuc())
     }
+
     fn from_chunk(chunk: &[u8]) -> u64 {
-        u64::from_be_bytes(chunk[0..Self::BYTE_SIZE].try_into().expect("impossible"))
+        match chunk.try_into() {
+            Ok(arr) => u64::from_be_bytes(arr),
+            Err(_) => unreachable!(),
+        }
     }
+
     fn test_high_bit(&self) -> bool {
         let high_bit: u64 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
         (*self & high_bit) != 0
@@ -129,12 +136,15 @@ impl MacWord for u64 {
 // key pair form 64 bit word
 impl MacKeyPair for u128 {
     type Word = u64;
+
     fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> u128 {
-        u128::gen_word(&mut || zuc())
+        u128::gen_word(zuc)
     }
+
     fn high(&self) -> u64 {
         (self >> 64) as u64
     }
+
     fn set_low(&mut self, low: Self::Word) {
         *self |= Self::from(low);
     }
@@ -143,15 +153,21 @@ impl MacKeyPair for u128 {
 // 128 bit word
 impl MacWord for u128 {
     type KeyPair = U256;
+
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u128 {
         (u128::from(zuc()) << 96)
             | (u128::from(zuc()) << 64)
             | (u128::from(zuc()) << 32)
             | u128::from(zuc())
     }
+
     fn from_chunk(chunk: &[u8]) -> u128 {
-        u128::from_be_bytes(chunk[0..Self::BYTE_SIZE].try_into().expect("impossible"))
+        match chunk.try_into() {
+            Ok(arr) => u128::from_be_bytes(arr),
+            Err(_) => unreachable!(),
+        }
     }
+
     fn test_high_bit(&self) -> bool {
         let high_bit: u128 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
         (*self & high_bit) != 0
@@ -161,14 +177,17 @@ impl MacWord for u128 {
 // key pair form 128 bit word
 impl MacKeyPair for U256 {
     type Word = u128;
+
     fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> U256 {
         let high = u128::gen_word(&mut || zuc());
         let low = u128::gen_word(&mut || zuc());
         U256::new(high, low)
     }
+
     fn high(&self) -> u128 {
         self.high
     }
+
     fn set_low(&mut self, low: Self::Word) {
         self.low = low;
     }
@@ -178,16 +197,13 @@ impl MacKeyPair for U256 {
 #[inline(always)]
 fn zuc_256_mac_xor_t<T>(bits: &mut T, key: &mut T::KeyPair, tag: &mut T)
 where
-    T: MacWord + From<u8>,
+    T: MacWord,
 {
-    let k: T = if bits.test_high_bit() {
-        key.high()
-    } else {
-        T::from(0)
-    };
-    *tag ^= k;
-    bits.shl_once();
-    key.shl_once();
+    if bits.test_high_bit() {
+        *tag ^= key.high();
+    }
+    *bits <<= 1;
+    *key <<= 1;
 }
 
 /// get remaining bits for zuc 256 mac
@@ -197,9 +213,10 @@ where
 {
     let i = bitlen / T::BIT_SIZE * T::BYTE_SIZE;
     let j = (bitlen % T::BIT_SIZE - 1) / 8;
-    let mut bytes = [0u8; 16];
-    bytes[..=j].copy_from_slice(&m[i..=i + j]);
-    T::from_chunk(&bytes[..T::BYTE_SIZE])
+
+    let mut buf = [0u8; 16];
+    buf[..=j].copy_from_slice(&m[i..=i + j]);
+    T::from_chunk(&buf[..T::BYTE_SIZE])
 }
 
 /// ZUC256 MAC generation algorithm
@@ -222,21 +239,24 @@ where
 #[allow(clippy::cast_possible_truncation)]
 pub fn zuc256_generate_mac<T>(ik: &[u8; 32], iv: &[u8; 23], length: u32, m: &[u8]) -> T
 where
-    T: MacWord + From<u8>,
+    T: MacWord,
 {
     let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
     assert!(
         bitlen <= m.len() * 8,
         "`length` is greater than the length of `m`"
     );
+
     let d = match T::BIT_SIZE {
         32 => &D_32,
         64 => &D_64,
         128 => &D_128,
         _ => unreachable!(),
     };
+
     let mut zuc = Zuc256Core::new_with_d(ik, iv, d);
     let mut gen = || zuc.generate();
+
     let mut tag: T = T::gen_word(&mut gen);
     let mut key: T::KeyPair = T::KeyPair::gen_key_pair(&mut gen);
 
