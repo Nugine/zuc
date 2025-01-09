@@ -2,23 +2,35 @@
 use crate::u256::U256;
 use crate::zuc256::Zuc256Core;
 
+/// d constant for 32bit MAC
+const D_32: [u8; 16] = [
+    0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
+    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
+];
+
+/// d constant for 64bit MAC
+const D_64: [u8; 16] = [
+    0b010_0011, 0b010_1111, 0b010_0100, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
+    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
+];
+
+/// d constant for 128bit MAC
+const D_128: [u8; 16] = [
+    0b010_0011, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
+    0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
+];
+
 mod private {
     //! private for sealed trait
 
-    use std::ops::BitAnd;
-    use std::ops::BitOrAssign;
-    use std::ops::BitXor;
-    use std::ops::BitXorAssign;
-    use std::ops::ShlAssign;
+    use std::ops::{BitXorAssign, ShlAssign};
 
     /// Mac Word
     pub trait MacWord
     where
         Self: Sized + Copy,
-        Self: BitXor + BitXorAssign + BitAnd<Output = Self> + BitOrAssign,
+        Self: BitXorAssign,
         Self: ShlAssign<usize>,
-        Self: From<u8>,
-        Self: Eq,
     {
         /// Mac Key Pair Type
         type KeyPair: MacKeyPair<Word = Self>;
@@ -26,10 +38,6 @@ mod private {
         const BYTE_SIZE: usize = std::mem::size_of::<Self>();
         /// bit size
         const BIT_SIZE: usize = std::mem::size_of::<Self>() * 8;
-        /// high bit
-        const HIGH_BIT: Self;
-        /// d constants
-        const D: [u8; 16];
 
         /// generate word
         fn gen_word(zuc: &mut impl FnMut() -> u32) -> Self;
@@ -38,9 +46,7 @@ mod private {
         fn from_chunk(chunk: &[u8]) -> Self;
 
         /// Test the highest bit of the word
-        fn test_high_bit(&self) -> bool {
-            (*self & Self::HIGH_BIT) != Self::from(0)
-        }
+        fn test_high_bit(&self) -> bool;
 
         /// Shift left by one bit
         fn shl_once(&mut self) {
@@ -79,26 +85,24 @@ use self::private::MacWord;
 // 32 bit word
 impl MacWord for u32 {
     type KeyPair = u64;
-    const D: [u8; 16] = [
-        0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000,
-        0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010,
-        0b001_0000, 0b011_0000,
-    ];
-    const HIGH_BIT: u32 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u32 {
         zuc()
     }
     fn from_chunk(chunk: &[u8]) -> u32 {
         u32::from_be_bytes(chunk[0..Self::BYTE_SIZE].try_into().expect("impossible"))
     }
+    fn test_high_bit(&self) -> bool {
+        let high_bit: u32 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
+        (*self & high_bit) != 0
+    }
 }
 
+// key pair form 32 bit word
 impl MacKeyPair for u64 {
     type Word = u32;
     fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> u64 {
-        (u64::from(zuc()) << 32) | u64::from(zuc())
+        u64::gen_word(&mut || zuc())
     }
-
     fn high(&self) -> u32 {
         (self >> 32) as u32
     }
@@ -110,28 +114,24 @@ impl MacKeyPair for u64 {
 // 64 bit word
 impl MacWord for u64 {
     type KeyPair = u128;
-    const D: [u8; 16] = [
-        0b010_0011, 0b010_1111, 0b010_0100, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000,
-        0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010,
-        0b001_0000, 0b011_0000,
-    ];
-    const HIGH_BIT: u64 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u64 {
         (u64::from(zuc()) << 32) | u64::from(zuc())
     }
     fn from_chunk(chunk: &[u8]) -> u64 {
         u64::from_be_bytes(chunk[0..Self::BYTE_SIZE].try_into().expect("impossible"))
     }
+    fn test_high_bit(&self) -> bool {
+        let high_bit: u64 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
+        (*self & high_bit) != 0
+    }
 }
+
+// key pair form 64 bit word
 impl MacKeyPair for u128 {
     type Word = u64;
     fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> u128 {
-        (u128::from(zuc()) << 96)
-            | (u128::from(zuc()) << 64)
-            | (u128::from(zuc()) << 32)
-            | u128::from(zuc())
+        u128::gen_word(&mut || zuc())
     }
-
     fn high(&self) -> u64 {
         (self >> 64) as u64
     }
@@ -143,12 +143,6 @@ impl MacKeyPair for u128 {
 // 128 bit word
 impl MacWord for u128 {
     type KeyPair = U256;
-    const D: [u8; 16] = [
-        0b010_0011, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000,
-        0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010,
-        0b001_0000, 0b011_0000,
-    ];
-    const HIGH_BIT: u128 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> u128 {
         (u128::from(zuc()) << 96)
             | (u128::from(zuc()) << 64)
@@ -158,22 +152,20 @@ impl MacWord for u128 {
     fn from_chunk(chunk: &[u8]) -> u128 {
         u128::from_be_bytes(chunk[0..Self::BYTE_SIZE].try_into().expect("impossible"))
     }
+    fn test_high_bit(&self) -> bool {
+        let high_bit: u128 = 1 << (std::mem::size_of::<Self>() * 8 - 1);
+        (*self & high_bit) != 0
+    }
 }
 
+// key pair form 128 bit word
 impl MacKeyPair for U256 {
     type Word = u128;
     fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> U256 {
-        let high = (u128::from(zuc()) << 96)
-            | (u128::from(zuc()) << 64)
-            | (u128::from(zuc()) << 32)
-            | u128::from(zuc());
-        let low = (u128::from(zuc()) << 96)
-            | (u128::from(zuc()) << 64)
-            | (u128::from(zuc()) << 32)
-            | u128::from(zuc());
+        let high = u128::gen_word(&mut || zuc());
+        let low = u128::gen_word(&mut || zuc());
         U256::new(high, low)
     }
-
     fn high(&self) -> u128 {
         self.high
     }
@@ -186,7 +178,7 @@ impl MacKeyPair for U256 {
 #[inline(always)]
 fn zuc_256_mac_xor_t<T>(bits: &mut T, key: &mut T::KeyPair, tag: &mut T)
 where
-    T: MacWord,
+    T: MacWord + From<u8>,
 {
     let k: T = if bits.test_high_bit() {
         key.high()
@@ -205,9 +197,9 @@ where
 {
     let i = bitlen / T::BIT_SIZE * T::BYTE_SIZE;
     let j = (bitlen % T::BIT_SIZE - 1) / 8;
-    let mut bytes = vec![0u8; T::BYTE_SIZE];
+    let mut bytes = [0u8; 16];
     bytes[..=j].copy_from_slice(&m[i..=i + j]);
-    T::from_chunk(&bytes)
+    T::from_chunk(&bytes[..T::BYTE_SIZE])
 }
 
 /// ZUC256 MAC generation algorithm
@@ -230,16 +222,23 @@ where
 #[allow(clippy::cast_possible_truncation)]
 pub fn zuc256_generate_mac<T>(ik: &[u8; 32], iv: &[u8; 23], length: u32, m: &[u8]) -> T
 where
-    T: MacWord,
+    T: MacWord + From<u8>,
 {
     let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
     assert!(
         bitlen <= m.len() * 8,
         "`length` is greater than the length of `m`"
     );
-    let mut zuc = Zuc256Core::new_with_d(ik, iv, &T::D);
-    let mut tag: T = T::gen_word(&mut || zuc.generate());
-    let mut key: T::KeyPair = T::KeyPair::gen_key_pair(&mut || zuc.generate());
+    let d = match T::BIT_SIZE {
+        32 => &D_32,
+        64 => &D_64,
+        128 => &D_128,
+        _ => unreachable!(),
+    };
+    let mut zuc = Zuc256Core::new_with_d(ik, iv, d);
+    let mut gen = || zuc.generate();
+    let mut tag: T = T::gen_word(&mut gen);
+    let mut key: T::KeyPair = T::KeyPair::gen_key_pair(&mut gen);
 
     for chunk in m[..(bitlen / 8)].chunks_exact(T::BYTE_SIZE) {
         let mut bits = T::from_chunk(chunk);
@@ -248,7 +247,7 @@ where
             zuc_256_mac_xor_t(&mut bits, &mut key, &mut tag);
         }
 
-        key.set_low(T::gen_word(&mut || zuc.generate()));
+        key.set_low(T::gen_word(&mut gen));
     }
 
     if bitlen % T::BIT_SIZE == 0 {
@@ -332,15 +331,12 @@ mod tests {
 
         for x in examples {
             let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, x.length, x.m);
-            println!("1");
             assert_eq!(mac_32, x.expected_32);
 
             let mac_64 = zuc256_generate_mac::<u64>(&x.k, &x.iv, x.length, x.m);
-            println!("2");
             assert_eq!(mac_64, x.expected_64);
 
             let mac_128 = zuc256_generate_mac::<u128>(&x.k, &x.iv, x.length, x.m);
-            println!("3");
             assert_eq!(mac_128, x.expected_128);
         }
     }
