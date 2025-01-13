@@ -2,7 +2,6 @@
 
 use crate::u256::U256;
 
-use std::mem::size_of;
 use std::ops::{BitXorAssign, ShlAssign};
 
 /// Mac Word
@@ -14,12 +13,6 @@ where
 {
     /// Mac Key Pair Type
     type KeyPair: MacKeyPair<Word = Self>;
-
-    /// byte size of Self
-    const BYTE_SIZE: usize = size_of::<Self>();
-
-    /// bit size of Self
-    const BIT_SIZE: usize = size_of::<Self>() * 8;
 
     /// generate word
     fn gen_word(zuc: &mut impl FnMut() -> u32) -> Self;
@@ -66,7 +59,7 @@ impl MacWord for u32 {
     }
 
     fn test_high_bit(&self) -> bool {
-        let high_bit: u32 = 1 << (Self::BIT_SIZE - 1);
+        let high_bit: u32 = 1 << (32 - 1);
         (*self & high_bit) != 0
     }
 }
@@ -104,7 +97,7 @@ impl MacWord for u64 {
     }
 
     fn test_high_bit(&self) -> bool {
-        let high_bit: u64 = 1 << (Self::BIT_SIZE - 1);
+        let high_bit: u64 = 1 << (64 - 1);
         (*self & high_bit) != 0
     }
 }
@@ -145,7 +138,7 @@ impl MacWord for u128 {
     }
 
     fn test_high_bit(&self) -> bool {
-        let high_bit: u128 = 1 << (Self::BIT_SIZE - 1);
+        let high_bit: u128 = 1 << (128 - 1);
         (*self & high_bit) != 0
     }
 }

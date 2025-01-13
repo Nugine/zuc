@@ -2,6 +2,8 @@
 use crate::mac::{MacKeyPair, MacWord};
 use crate::zuc256::Zuc256Core;
 
+use core::mem::size_of;
+
 /// d constant for 32bit MAC
 const D_32: [u8; 16] = [
     0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
@@ -33,19 +35,6 @@ where
     *key <<= 1;
 }
 
-/// get remaining bits for zuc 256 mac
-fn zuc256_mac_get_remaining_bits<T>(bitlen: usize, m: &[u8]) -> T
-where
-    T: MacWord,
-{
-    let i = bitlen / T::BIT_SIZE * T::BYTE_SIZE;
-    let j = (bitlen % T::BIT_SIZE - 1) / 8;
-
-    let mut buf = [0u8; 16];
-    buf[..=j].copy_from_slice(&m[i..=i + j]);
-    T::from_chunk(&buf[..T::BYTE_SIZE])
-}
-
 /// ZUC256 MAC generation algorithm
 /// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
 ///
@@ -74,10 +63,13 @@ where
         "`length` is greater than the length of `m`"
     );
 
-    let d = match T::BIT_SIZE {
-        32 => &D_32,
-        64 => &D_64,
-        128 => &D_128,
+    let byte_size = size_of::<T>();
+    let bit_size = byte_size * 8;
+
+    let d = match byte_size {
+        4 => &D_32,
+        8 => &D_64,
+        16 => &D_128,
         _ => unreachable!(),
     };
 
@@ -87,27 +79,32 @@ where
     let mut tag: T = T::gen_word(&mut gen);
     let mut key: T::KeyPair = T::KeyPair::gen_key_pair(&mut gen);
 
-    for chunk in m[..(bitlen / 8)].chunks_exact(T::BYTE_SIZE) {
+    for chunk in m[..(bitlen / 8)].chunks_exact(byte_size) {
         let mut bits = T::from_chunk(chunk);
 
-        for _ in 0..T::BIT_SIZE {
+        for _ in 0..bit_size {
             zuc_256_mac_xor_t(&mut bits, &mut key, &mut tag);
         }
 
         key.set_low(T::gen_word(&mut gen));
     }
 
-    if bitlen % T::BIT_SIZE == 0 {
-        tag ^= key.high();
-    } else {
-        let mut bits = zuc256_mac_get_remaining_bits::<T>(bitlen, m);
+    if bitlen % bit_size != 0 {
+        let mut bits = {
+            let i = bitlen / bit_size * byte_size;
+            let j = (bitlen % bit_size - 1) / 8;
 
-        for _ in 0..(bitlen % T::BIT_SIZE) {
+            let mut buf = [0u8; 16];
+            buf[..=j].copy_from_slice(&m[i..=i + j]);
+            <T>::from_chunk(&buf[..byte_size])
+        };
+
+        for _ in 0..(bitlen % bit_size) {
             zuc_256_mac_xor_t(&mut bits, &mut key, &mut tag);
         }
-
-        tag ^= key.high();
     }
+
+    tag ^= key.high();
 
     tag
 }
