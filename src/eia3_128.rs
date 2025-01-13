@@ -1,90 +1,5 @@
 //! ZUC Confidentiality Algorithms
-
-use crate::Zuc128Core;
-
-use stdx::slice::SliceExt;
-
-/// t xor keystream in EIA3
-#[inline(always)]
-fn eia3_xor_t(bits: &mut u32, key: &mut u64, t: &mut u32) {
-    let k = if *bits & 0x8000_0000 != 0 {
-        (*key >> 32) as u32
-    } else {
-        0
-    };
-    *t ^= k;
-    *bits <<= 1;
-    *key <<= 1;
-}
-
-/// ZUC128 MAC generation algorithm
-/// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
-///
-/// Input:
-/// - `ik`:         128bit  integrity key
-/// - `iv`:         128bit  initial vector
-/// - `length`:     32bit   The number of bits to be encrypted/decrypted.
-/// - `m`:          the input message
-///
-/// Output:
-/// - `u32`:        MAC(Message Authentication Code)
-///
-/// # Panics
-/// + Panics if `length` is greater than the length of `m`
-/// + Panics if `length` is greater than `usize::MAX`.
-#[allow(clippy::cast_possible_truncation)]
-#[must_use]
-pub fn zuc128_generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 {
-    let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
-    assert!(
-        bitlen <= m.len() * 8,
-        "`length` is greater than the length of `m`"
-    );
-
-    let mut zuc = Zuc128Core::new(ik, iv);
-
-    let mut t: u32 = 0;
-
-    let mut key = {
-        let k0 = zuc.generate();
-        let k1 = zuc.generate();
-        (u64::from(k0) << 32) | u64::from(k1)
-    };
-
-    for chunk in m[..(bitlen / 32 * 4)].as_chunks_::<4>().0 {
-        let mut bits = u32::from_be_bytes(*chunk);
-
-        for _ in 0..32 {
-            eia3_xor_t(&mut bits, &mut key, &mut t);
-        }
-
-        key |= u64::from(zuc.generate());
-    }
-
-    if bitlen % 32 == 0 {
-        t ^= (key >> 32) as u32;
-        t ^= key as u32;
-    } else {
-        let i = bitlen / 32 * 4;
-
-        let mut bits = match (bitlen % 32) / 8 {
-            0 => u32::from_be_bytes([m[i], 0, 0, 0]),
-            1 => u32::from_be_bytes([m[i], m[i + 1], 0, 0]),
-            2 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], 0]),
-            3 => u32::from_be_bytes([m[i], m[i + 1], m[i + 2], m[i + 3]]),
-            _ => unreachable!(),
-        };
-
-        for _ in 0..(bitlen % 32) {
-            eia3_xor_t(&mut bits, &mut key, &mut t);
-        }
-
-        t ^= (key >> 32) as u32;
-        t ^= zuc.generate();
-    }
-
-    t
-}
+use crate::zuc128_generate_mac;
 
 /// 128-EIA3: 3GPP confidentiality algorithm
 /// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
@@ -268,7 +183,7 @@ mod tests {
         }
     }
 
-    #[should_panic(expected = "`length` is greater than the length of `m`")]
+    #[should_panic(expected = "assertion failed: bitlen <= tail.len() * 8")]
     #[test]
     fn invalid_input() {
         let x = &EXAMPLE2;
