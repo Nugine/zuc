@@ -16,6 +16,7 @@
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+mod mac;
 mod u256;
 mod zuc;
 
