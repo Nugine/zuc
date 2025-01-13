@@ -12,6 +12,7 @@
     clippy::inline_always, //
     clippy::needless_range_loop,
     clippy::module_name_repetitions,
+    clippy::multiple_crate_versions,
 )]
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]

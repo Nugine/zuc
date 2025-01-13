@@ -6,6 +6,9 @@ use crate::zuc256::Zuc256Core;
 
 use std::ops::{BitXorAssign, ShlAssign};
 
+use generic_array::typenum;
+use generic_array::ArrayLength;
+
 pub trait KeyStream {
     fn next_key(&mut self) -> u32;
 }
@@ -33,6 +36,8 @@ where
 {
     /// Mac Key Pair Type
     type KeyPair: MacKeyPair<Word = Self>;
+
+    type ByteSize: ArrayLength;
 
     /// generate word
     fn gen_word(zuc: &mut impl KeyStream) -> Self;
@@ -66,6 +71,8 @@ where
 // 32 bit word
 impl MacWord for u32 {
     type KeyPair = u64;
+
+    type ByteSize = typenum::U4;
 
     fn gen_word(zuc: &mut impl KeyStream) -> u32 {
         zuc.next_key()
@@ -105,6 +112,8 @@ impl MacKeyPair for u64 {
 impl MacWord for u64 {
     type KeyPair = u128;
 
+    type ByteSize = typenum::U8;
+
     fn gen_word(zuc: &mut impl KeyStream) -> u64 {
         (u64::from(zuc.next_key()) << 32) | u64::from(zuc.next_key())
     }
@@ -142,6 +151,8 @@ impl MacKeyPair for u128 {
 // 128 bit word
 impl MacWord for u128 {
     type KeyPair = U256;
+
+    type ByteSize = typenum::U16;
 
     fn gen_word(zuc: &mut impl KeyStream) -> u128 {
         let a = (

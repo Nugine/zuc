@@ -4,6 +4,9 @@ use crate::zuc256::Zuc256Core;
 
 use core::mem::size_of;
 
+use generic_array::GenericArray;
+use stdx::default::default;
+
 /// d constant for 32bit MAC
 const D_32: [u8; 16] = [
     0b010_0010, 0b010_1111, 0b010_0101, 0b010_1010, 0b110_1101, 0b100_0000, 0b100_0000, 0b100_0000,
@@ -93,9 +96,9 @@ where
             let i = bitlen / bit_size * byte_size;
             let j = (bitlen % bit_size - 1) / 8;
 
-            let mut buf = [0u8; 16];
+            let mut buf: GenericArray<u8, T::ByteSize> = default();
             buf[..=j].copy_from_slice(&m[i..=i + j]);
-            <T>::from_chunk(&buf[..byte_size])
+            <T>::from_chunk(&buf[..])
         };
 
         for _ in 0..(bitlen % bit_size) {
