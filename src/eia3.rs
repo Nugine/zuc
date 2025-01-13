@@ -1,7 +1,7 @@
 //! ZUC Confidentiality Algorithms
-use crate::zuc128_generate_mac;
+use crate::zuc128_mac::Zuc128Mac;
 
-/// 128-EIA3: 3GPP confidentiality algorithm
+/// 128-EIA3: 3GPP Integrity algorithm
 /// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
 ///
 /// Input:
@@ -16,10 +16,10 @@ use crate::zuc128_generate_mac;
 /// - `u32`:        MAC(Message Authentication Code)
 ///
 /// # Panics
-/// + Panics if `length` is greater than the length of `m`
+/// + Panics if `length` is greater than the bit length of `m`
 /// + Panics if `length` is greater than `usize::MAX`.
 #[must_use]
-pub fn eia3_128_generate_mac(
+pub fn eia3_generate_mac(
     count: u32,
     bearer: u8,
     direction: u8,
@@ -27,22 +27,60 @@ pub fn eia3_128_generate_mac(
     length: u32,
     m: &[u8],
 ) -> u32 {
-    let mut iv: [u8; 16] = [0; 16];
-    let count: [u8; 4] = count.to_be_bytes();
-    let bearer = bearer & 0x1f;
-    let direction = direction & 0x01;
-    iv[0] = count[0];
-    iv[1] = count[1];
-    iv[2] = count[2];
-    iv[3] = count[3];
-    iv[4] = bearer << 3;
-    iv[8] = iv[0] ^ (direction << 7);
-    iv[9] = iv[1];
-    iv[10] = iv[2];
-    iv[11] = iv[3];
-    iv[12] = iv[4];
-    iv[14] = iv[6] ^ (direction << 7);
-    zuc128_generate_mac(ik, &iv, length, m)
+    let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
+    Eia3Mac::compute(count, bearer, direction, ik, m, bitlen)
+}
+
+/// 128-EIA3: 3GPP Integrity algorithm
+/// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
+pub struct Eia3Mac(Zuc128Mac);
+
+impl Eia3Mac {
+    /// Create a 128-EIA3 MAC generator
+    #[must_use]
+    pub fn new(count: u32, bearer: u8, direction: u8, ik: &[u8; 16]) -> Self {
+        let mut iv: [u8; 16] = [0; 16];
+        let count: [u8; 4] = count.to_be_bytes();
+        let bearer = bearer & 0x1f;
+        let direction = direction & 0x01;
+        iv[0] = count[0];
+        iv[1] = count[1];
+        iv[2] = count[2];
+        iv[3] = count[3];
+        iv[4] = bearer << 3;
+        iv[8] = iv[0] ^ (direction << 7);
+        iv[9] = iv[1];
+        iv[10] = iv[2];
+        iv[11] = iv[3];
+        iv[12] = iv[4];
+        iv[14] = iv[6] ^ (direction << 7);
+
+        Self(Zuc128Mac::new(ik, &iv))
+    }
+
+    /// Update the MAC generator with the bytes of a message
+    pub fn update(&mut self, msg: &[u8]) {
+        self.0.update(msg);
+    }
+
+    /// Finish the MAC generation and return the MAC
+    #[must_use]
+    pub fn finish(self, tail: &[u8], bitlen: usize) -> u32 {
+        self.0.finish(tail, bitlen)
+    }
+
+    /// Compute the MAC of a message
+    #[must_use]
+    pub fn compute(
+        count: u32,
+        bearer: u8,
+        direction: u8,
+        ik: &[u8; 16],
+        msg: &[u8],
+        bitlen: usize,
+    ) -> u32 {
+        Self::new(count, bearer, direction, ik).finish(msg, bitlen)
+    }
 }
 
 #[cfg(test)]
@@ -174,11 +212,18 @@ mod tests {
         mac: 0x0ca1_2792,
     };
 
+    static ALL_EXAMPLES: &[&Example] = &[
+        &EXAMPLE1, //
+        &EXAMPLE2, //
+        &EXAMPLE3, //
+        &EXAMPLE4, //
+        &EXAMPLE5, //
+    ];
+
     #[test]
     fn examples() {
-        let examples = [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3, &EXAMPLE4, &EXAMPLE5];
-        for x in examples {
-            let mac = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length, x.m);
+        for x in ALL_EXAMPLES {
+            let mac = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length, x.m);
             assert_eq!(mac, x.mac);
         }
     }
@@ -187,7 +232,7 @@ mod tests {
     #[test]
     fn invalid_input() {
         let x = &EXAMPLE2;
-        let _ = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length * 2, x.m);
+        let _ = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length * 2, x.m);
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -195,7 +240,7 @@ mod tests {
     fn full_bitlen() {
         let x = &EXAMPLE5;
         let length = x.m.len() as u32 * 8;
-        let mac = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        let mac = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
         assert_eq!(mac, 0x2592_99ab); // generated from GmSSL
     }
 
@@ -203,7 +248,29 @@ mod tests {
     fn zero_bitlen() {
         let x = &EXAMPLE5;
         let length = 0;
-        let mac = eia3_128_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        let mac = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
         assert_eq!(mac, 0x0787_bab1); // generated from GmSSL
+    }
+
+    #[test]
+    fn streaming() {
+        fn check(x: &Example, parts: &[usize], expected: u32) {
+            let mut mac = Eia3Mac::new(x.count, x.bearer, x.direction, &x.ik);
+
+            for i in 1..parts.len() {
+                mac.update(&x.m[parts[i - 1]..parts[i]]);
+            }
+
+            let last = parts[parts.len() - 1];
+            let ans = mac.finish(&x.m[last..], x.length as usize - last * 8);
+
+            assert_eq!(ans, expected);
+        }
+
+        for x in ALL_EXAMPLES {
+            for bp in 0..(x.length as usize) / 8 {
+                check(x, &[0, bp], x.mac);
+            }
+        }
     }
 }

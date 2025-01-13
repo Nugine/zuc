@@ -43,7 +43,7 @@ fn eia3_mac(c: &mut Criterion) {
         let direction = 0;
         let length = input.len() as u32 * 8 - 15;
         let ik = &hex!("47 05 41 25 56 1e b2 dd a9 40 59 da 05 09 78 50");
-        zuc::eia3_128_generate_mac(count, bearer, direction, ik, length, input)
+        zuc::eia3_generate_mac(count, bearer, direction, ik, length, input)
     };
 
     let mut group = c.benchmark_group("eia3_mac");
