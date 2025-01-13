@@ -74,10 +74,9 @@ where
     };
 
     let mut zuc = Zuc256Core::new_with_d(ik, iv, d);
-    let mut gen = || zuc.generate();
 
-    let mut tag: T = T::gen_word(&mut gen);
-    let mut key: T::KeyPair = T::KeyPair::gen_key_pair(&mut gen);
+    let mut tag: T = T::gen_word(&mut zuc);
+    let mut key: T::KeyPair = T::KeyPair::gen_key_pair(&mut zuc);
 
     for chunk in m[..(bitlen / 8)].chunks_exact(byte_size) {
         let mut bits = T::from_chunk(chunk);
@@ -86,7 +85,7 @@ where
             zuc_256_mac_xor_t(&mut bits, &mut key, &mut tag);
         }
 
-        key.set_low(T::gen_word(&mut gen));
+        key.set_low(T::gen_word(&mut zuc));
     }
 
     if bitlen % bit_size != 0 {

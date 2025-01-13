@@ -1,8 +1,28 @@
 //! private for sealed trait
 
 use crate::u256::U256;
+use crate::zuc128::Zuc128Core;
+use crate::zuc256::Zuc256Core;
 
 use std::ops::{BitXorAssign, ShlAssign};
+
+pub trait KeyStream {
+    fn next_key(&mut self) -> u32;
+}
+
+impl KeyStream for Zuc128Core {
+    #[inline(always)]
+    fn next_key(&mut self) -> u32 {
+        self.generate()
+    }
+}
+
+impl KeyStream for Zuc256Core {
+    #[inline(always)]
+    fn next_key(&mut self) -> u32 {
+        self.generate()
+    }
+}
 
 /// Mac Word
 pub trait MacWord
@@ -15,7 +35,7 @@ where
     type KeyPair: MacKeyPair<Word = Self>;
 
     /// generate word
-    fn gen_word(zuc: &mut impl FnMut() -> u32) -> Self;
+    fn gen_word(zuc: &mut impl KeyStream) -> Self;
 
     /// convert key from big endian bytes
     fn from_chunk(chunk: &[u8]) -> Self;
@@ -34,7 +54,7 @@ where
     type Word: MacWord<KeyPair = Self>;
 
     /// generate key pair
-    fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> Self;
+    fn gen_key_pair(zuc: &mut impl KeyStream) -> Self;
 
     /// get high bits
     fn high(&self) -> Self::Word;
@@ -47,8 +67,8 @@ where
 impl MacWord for u32 {
     type KeyPair = u64;
 
-    fn gen_word(zuc: &mut impl FnMut() -> u32) -> u32 {
-        zuc()
+    fn gen_word(zuc: &mut impl KeyStream) -> u32 {
+        zuc.next_key()
     }
 
     fn from_chunk(chunk: &[u8]) -> u32 {
@@ -68,7 +88,7 @@ impl MacWord for u32 {
 impl MacKeyPair for u64 {
     type Word = u32;
 
-    fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> u64 {
+    fn gen_key_pair(zuc: &mut impl KeyStream) -> u64 {
         u64::gen_word(zuc)
     }
 
@@ -85,8 +105,8 @@ impl MacKeyPair for u64 {
 impl MacWord for u64 {
     type KeyPair = u128;
 
-    fn gen_word(zuc: &mut impl FnMut() -> u32) -> u64 {
-        (u64::from(zuc()) << 32) | u64::from(zuc())
+    fn gen_word(zuc: &mut impl KeyStream) -> u64 {
+        (u64::from(zuc.next_key()) << 32) | u64::from(zuc.next_key())
     }
 
     fn from_chunk(chunk: &[u8]) -> u64 {
@@ -106,7 +126,7 @@ impl MacWord for u64 {
 impl MacKeyPair for u128 {
     type Word = u64;
 
-    fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> u128 {
+    fn gen_key_pair(zuc: &mut impl KeyStream) -> u128 {
         u128::gen_word(zuc)
     }
 
@@ -123,11 +143,14 @@ impl MacKeyPair for u128 {
 impl MacWord for u128 {
     type KeyPair = U256;
 
-    fn gen_word(zuc: &mut impl FnMut() -> u32) -> u128 {
-        (u128::from(zuc()) << 96)
-            | (u128::from(zuc()) << 64)
-            | (u128::from(zuc()) << 32)
-            | u128::from(zuc())
+    fn gen_word(zuc: &mut impl KeyStream) -> u128 {
+        let a = (
+            u128::from(zuc.next_key()) << 96,
+            u128::from(zuc.next_key()) << 64,
+            u128::from(zuc.next_key()) << 32,
+            u128::from(zuc.next_key()),
+        );
+        a.0 | a.1 | a.2 | a.3
     }
 
     fn from_chunk(chunk: &[u8]) -> u128 {
@@ -147,9 +170,9 @@ impl MacWord for u128 {
 impl MacKeyPair for U256 {
     type Word = u128;
 
-    fn gen_key_pair(zuc: &mut impl FnMut() -> u32) -> U256 {
-        let high = u128::gen_word(&mut || zuc());
-        let low = u128::gen_word(&mut || zuc());
+    fn gen_key_pair(zuc: &mut impl KeyStream) -> U256 {
+        let high = u128::gen_word(zuc);
+        let low = u128::gen_word(zuc);
         U256::new(high, low)
     }
 
