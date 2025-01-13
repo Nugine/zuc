@@ -35,5 +35,6 @@ pub use self::zuc256::{Zuc256, Zuc256Core};
 
 mod zuc256_mac;
 pub use self::zuc256_mac::zuc256_generate_mac;
+pub use self::zuc256_mac::Zuc256Mac;
 
 pub use cipher;
