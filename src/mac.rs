@@ -4,10 +4,13 @@ use crate::u256::U256;
 use crate::zuc128::Zuc128Core;
 use crate::zuc256::Zuc256Core;
 
+use core::fmt;
+use core::mem::size_of;
 use std::ops::{BitXorAssign, ShlAssign};
 
 use generic_array::typenum;
 use generic_array::ArrayLength;
+use generic_array::GenericArray;
 
 pub trait KeyStream {
     fn next_key(&mut self) -> u32;
@@ -30,9 +33,9 @@ impl KeyStream for Zuc256Core {
 /// Mac Word
 pub trait MacWord
 where
-    Self: Sized + Copy,
-    Self: BitXorAssign,
-    Self: ShlAssign<usize>,
+    Self: Sized + Copy + Eq,
+    Self: fmt::Debug + fmt::LowerHex + fmt::UpperHex,
+    Self: BitXorAssign + ShlAssign<usize>,
 {
     /// Mac Key Pair Type
     type KeyPair: MacKeyPair<Word = Self>;
@@ -208,5 +211,122 @@ impl MacKeyPair for U256 {
 
     fn set_low(&mut self, low: Self::Word) {
         self.low = low;
+    }
+}
+
+#[inline(always)]
+fn copy(dst: &mut [u8], src: &[u8]) {
+    dst[..src.len()].copy_from_slice(src);
+}
+
+pub struct MacCore<S, T>
+where
+    S: KeyStream,
+    T: MacWord,
+{
+    pub zuc: S,
+    pub key: T::KeyPair,
+    pub tag: T,
+
+    pub rem: GenericArray<u8, T::ByteSize>,
+    pub cnt: u8,
+}
+
+impl<S, T> MacCore<S, T>
+where
+    S: KeyStream,
+    T: MacWord,
+{
+    #[inline(always)]
+    fn xor_step(bits: &mut T, tag: &mut T, key: &mut T::KeyPair) {
+        if bits.test_high_bit() {
+            *tag ^= key.high();
+        }
+        *bits <<= 1;
+        *key <<= 1;
+    }
+
+    #[inline(always)]
+    fn feed_word(mut bits: T, tag: &mut T, key: &mut T::KeyPair, zuc: &mut S) {
+        for _ in 0..size_of::<T>() * 8 {
+            Self::xor_step(&mut bits, tag, key);
+        }
+        key.set_low(T::gen_word(zuc));
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn update(&mut self, mut msg: &[u8]) {
+        if msg.is_empty() {
+            return;
+        }
+
+        let zuc = &mut self.zuc;
+        let mut key = self.key;
+        let mut tag = self.tag;
+        let rem = self.rem.as_mut_slice();
+        let cnt = self.cnt as usize;
+
+        if cnt > 0 {
+            if cnt + msg.len() < size_of::<T>() {
+                copy(&mut rem[cnt..], msg);
+                self.cnt += msg.len() as u8;
+                return;
+            }
+
+            let (head, tail) = msg.split_at(size_of::<T>() - cnt);
+            copy(&mut rem[cnt..], head);
+            msg = tail;
+
+            let bits = T::from_be_slice(rem);
+            Self::feed_word(bits, &mut tag, &mut key, zuc);
+        }
+
+        let mut chunks = msg.chunks_exact(size_of::<T>());
+        for chunk in &mut chunks {
+            let bits = T::from_be_slice(chunk);
+            Self::feed_word(bits, &mut tag, &mut key, zuc);
+        }
+
+        {
+            let rest = chunks.remainder();
+            copy(rem, rest);
+            self.cnt = rest.len() as u8;
+        }
+
+        self.key = key;
+        self.tag = tag;
+    }
+
+    #[must_use]
+    pub fn finish(&mut self, mut tail: &[u8], mut bitlen: usize) -> usize {
+        assert!(bitlen <= tail.len() * 8);
+
+        if bitlen >= 8 {
+            self.update(&tail[..(bitlen / 8)]);
+            tail = &tail[(bitlen / 8)..];
+            bitlen %= 8;
+        }
+
+        let mut key = self.key;
+        let mut tag = self.tag;
+        let rem = self.rem.as_mut_slice();
+        let cnt = self.cnt as usize;
+
+        if bitlen != 0 {
+            rem[cnt] = tail[0];
+        }
+
+        let bitlen = cnt * 8 + bitlen;
+        if bitlen != 0 {
+            let mut bits = T::from_be_slice(rem);
+            for _ in 0..bitlen {
+                Self::xor_step(&mut bits, &mut tag, &mut key);
+            }
+
+            self.tag = tag;
+            self.key = key;
+        }
+
+        bitlen
     }
 }
