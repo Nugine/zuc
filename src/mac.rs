@@ -43,7 +43,7 @@ where
     fn gen_word(zuc: &mut impl KeyStream) -> Self;
 
     /// convert key from big endian bytes
-    fn from_chunk(chunk: &[u8]) -> Self;
+    fn from_be_slice(chunk: &[u8]) -> Self;
 
     /// test the highest bit of the word
     fn test_high_bit(&self) -> bool;
@@ -74,17 +74,20 @@ impl MacWord for u32 {
 
     type ByteSize = typenum::U4;
 
+    #[inline(always)]
     fn gen_word(zuc: &mut impl KeyStream) -> u32 {
         zuc.next_key()
     }
 
-    fn from_chunk(chunk: &[u8]) -> u32 {
+    #[inline(always)]
+    fn from_be_slice(chunk: &[u8]) -> u32 {
         match chunk.try_into() {
             Ok(arr) => u32::from_be_bytes(arr),
             Err(_) => unreachable!(),
         }
     }
 
+    #[inline(always)]
     fn test_high_bit(&self) -> bool {
         let high_bit: u32 = 1 << (32 - 1);
         (*self & high_bit) != 0
@@ -95,14 +98,17 @@ impl MacWord for u32 {
 impl MacKeyPair for u64 {
     type Word = u32;
 
+    #[inline(always)]
     fn gen_key_pair(zuc: &mut impl KeyStream) -> u64 {
         u64::gen_word(zuc)
     }
 
+    #[inline(always)]
     fn high(&self) -> u32 {
         (self >> 32) as u32
     }
 
+    #[inline(always)]
     fn set_low(&mut self, low: Self::Word) {
         *self |= Self::from(low);
     }
@@ -114,17 +120,20 @@ impl MacWord for u64 {
 
     type ByteSize = typenum::U8;
 
+    #[inline(always)]
     fn gen_word(zuc: &mut impl KeyStream) -> u64 {
         (u64::from(zuc.next_key()) << 32) | u64::from(zuc.next_key())
     }
 
-    fn from_chunk(chunk: &[u8]) -> u64 {
+    #[inline(always)]
+    fn from_be_slice(chunk: &[u8]) -> u64 {
         match chunk.try_into() {
             Ok(arr) => u64::from_be_bytes(arr),
             Err(_) => unreachable!(),
         }
     }
 
+    #[inline(always)]
     fn test_high_bit(&self) -> bool {
         let high_bit: u64 = 1 << (64 - 1);
         (*self & high_bit) != 0
@@ -135,14 +144,17 @@ impl MacWord for u64 {
 impl MacKeyPair for u128 {
     type Word = u64;
 
+    #[inline(always)]
     fn gen_key_pair(zuc: &mut impl KeyStream) -> u128 {
         u128::gen_word(zuc)
     }
 
+    #[inline(always)]
     fn high(&self) -> u64 {
         (self >> 64) as u64
     }
 
+    #[inline(always)]
     fn set_low(&mut self, low: Self::Word) {
         *self |= Self::from(low);
     }
@@ -154,6 +166,7 @@ impl MacWord for u128 {
 
     type ByteSize = typenum::U16;
 
+    #[inline(always)]
     fn gen_word(zuc: &mut impl KeyStream) -> u128 {
         let a = (
             u128::from(zuc.next_key()) << 96,
@@ -164,13 +177,15 @@ impl MacWord for u128 {
         a.0 | a.1 | a.2 | a.3
     }
 
-    fn from_chunk(chunk: &[u8]) -> u128 {
+    #[inline(always)]
+    fn from_be_slice(chunk: &[u8]) -> u128 {
         match chunk.try_into() {
             Ok(arr) => u128::from_be_bytes(arr),
             Err(_) => unreachable!(),
         }
     }
 
+    #[inline(always)]
     fn test_high_bit(&self) -> bool {
         let high_bit: u128 = 1 << (128 - 1);
         (*self & high_bit) != 0

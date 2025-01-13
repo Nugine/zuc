@@ -82,7 +82,7 @@ where
     let mut key: T::KeyPair = T::KeyPair::gen_key_pair(&mut zuc);
 
     for chunk in m[..(bitlen / 8)].chunks_exact(byte_size) {
-        let mut bits = T::from_chunk(chunk);
+        let mut bits = T::from_be_slice(chunk);
 
         for _ in 0..bit_size {
             zuc_256_mac_xor_t(&mut bits, &mut key, &mut tag);
@@ -98,7 +98,7 @@ where
 
             let mut buf: GenericArray<u8, T::ByteSize> = default();
             buf[..=j].copy_from_slice(&m[i..=i + j]);
-            <T>::from_chunk(&buf[..])
+            <T>::from_be_slice(&buf[..])
         };
 
         for _ in 0..(bitlen % bit_size) {
