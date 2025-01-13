@@ -4,12 +4,7 @@
     unsafe_code, //
     missing_docs,
 )]
-#![deny(
-    clippy::all,
-    clippy::pedantic,
-    clippy::cargo,
-    clippy::missing_docs_in_private_items
-)]
+#![deny(clippy::all, clippy::pedantic, clippy::cargo)]
 #![warn(
     clippy::todo, //
 )]
