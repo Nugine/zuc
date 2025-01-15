@@ -1,6 +1,7 @@
 use crate::mac::{MacCore, MacKeyPair};
 use crate::zuc128::Zuc128Core;
 
+use numeric_cast::TruncatingCast;
 use stdx::default::default;
 
 /// ZUC128 MAC generation algorithm
@@ -18,7 +19,6 @@ use stdx::default::default;
 /// # Panics
 /// + Panics if `length` is greater than the bit length of `m`
 /// + Panics if `length` is greater than `usize::MAX`.
-#[allow(clippy::cast_possible_truncation)]
 #[must_use]
 pub fn zuc128_generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 {
     let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
@@ -51,7 +51,6 @@ impl Zuc128Mac {
     }
 
     /// Finish the MAC generation and return the MAC
-    #[allow(clippy::cast_possible_truncation)]
     #[must_use]
     pub fn finish(mut self, tail: &[u8], bitlen: usize) -> u32 {
         let final_bitlen = self.0.finish(tail, bitlen);
@@ -62,7 +61,7 @@ impl Zuc128Mac {
         tag ^= key.high();
 
         if final_bitlen == 0 {
-            tag ^= key as u32;
+            tag ^= key.truncating_cast::<u32>();
         } else {
             tag ^= self.0.zuc.generate();
         }

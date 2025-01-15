@@ -88,6 +88,7 @@ mod tests {
     use super::*;
 
     use const_str::hex;
+    use numeric_cast::NumericCast;
 
     struct Example {
         ik: [u8; 16],
@@ -235,11 +236,10 @@ mod tests {
         let _ = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length * 2, x.m);
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn full_bitlen() {
         let x = &EXAMPLE5;
-        let length = x.m.len() as u32 * 8;
+        let length = x.m.len().numeric_cast::<u32>() * 8;
         let mac = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
         assert_eq!(mac, 0x2592_99ab); // generated from GmSSL
     }

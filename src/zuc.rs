@@ -1,5 +1,7 @@
 //! ZUC shared implementation
 
+use numeric_cast::TruncatingCast;
+
 /// S0 box
 static S0: [u8; 256] = const_str::hex!([
     "3E 72 5B 47 CA E0 00 33 04 D1 54 98 09 B9 6D CB",
@@ -138,7 +140,6 @@ impl Zuc {
     }
 
     /// `LFSRWithInitialisationMode` function
-    #[allow(clippy::cast_possible_truncation)]
     fn lfsr_with_initialization_mode(&mut self, u: u32) {
         let Self { s, .. } = self;
 
@@ -182,7 +183,7 @@ impl Zuc {
             sum += u64::from(s[15]) << 15;
 
             sum = (sum >> 31) + (sum & ((1 << 31) - 1));
-            let mut sum = sum as u32;
+            let mut sum = sum.truncating_cast::<u32>();
             sum = (sum >> 31) + (sum & ((1 << 31) - 1));
 
             sum

@@ -254,7 +254,6 @@ where
         key.set_low(T::gen_word(zuc));
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     pub fn update(&mut self, mut msg: &[u8]) {
         if msg.is_empty() {
             return;
@@ -269,7 +268,7 @@ where
         if cnt > 0 {
             if cnt + msg.len() < size_of::<T>() {
                 copy(&mut rem[cnt..], msg);
-                self.cnt += msg.len() as u8;
+                self.cnt += usize_as_u8(msg.len());
                 return;
             }
 
@@ -290,7 +289,7 @@ where
         {
             let rest = chunks.remainder();
             copy(rem, rest);
-            self.cnt = rest.len() as u8;
+            self.cnt = usize_as_u8(rest.len());
         }
 
         self.key = key;
@@ -329,4 +328,10 @@ where
 
         bitlen
     }
+}
+
+#[allow(clippy::cast_possible_truncation)]
+#[must_use]
+fn usize_as_u8(x: usize) -> u8 {
+    x as u8
 }
