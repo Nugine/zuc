@@ -11,6 +11,7 @@ use std::ops::{BitXorAssign, ShlAssign};
 use generic_array::typenum;
 use generic_array::ArrayLength;
 use generic_array::GenericArray;
+use numeric_cast::TruncatingCast;
 
 pub trait KeyStream {
     fn next_key(&mut self) -> u32;
@@ -268,7 +269,7 @@ where
         if cnt > 0 {
             if cnt + msg.len() < size_of::<T>() {
                 copy(&mut rem[cnt..], msg);
-                self.cnt += usize_as_u8(msg.len());
+                self.cnt += msg.len().truncating_cast::<u8>();
                 return;
             }
 
@@ -289,7 +290,7 @@ where
         {
             let rest = chunks.remainder();
             copy(rem, rest);
-            self.cnt = usize_as_u8(rest.len());
+            self.cnt = rest.len().truncating_cast::<u8>();
         }
 
         self.key = key;
@@ -328,10 +329,4 @@ where
 
         bitlen
     }
-}
-
-#[allow(clippy::cast_possible_truncation)]
-#[must_use]
-fn usize_as_u8(x: usize) -> u8 {
-    x as u8
 }

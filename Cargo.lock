@@ -216,9 +216,9 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cb8bc4c28d15ade99c7e90b219f30da4be5c88e586277e8cbe886beeb868ab2"
+checksum = "e8c8444bc9d71b935156cc0ccab7f622180808af7867b1daae6547d773591703"
 dependencies = [
  "typenum",
 ]
@@ -324,9 +324,9 @@ dependencies = [
 
 [[package]]
 name = "numeric_cast"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf70ee2d9b1737d1836c20d9f8f96ec3901b2bf92128439db13237ddce9173a5"
+checksum = "a3c00a0c9600379bd32f8972de90676a7672cba3bf4886986bc05902afc1e093"
 
 [[package]]
 name = "once_cell"
@@ -795,7 +795,7 @@ dependencies = [
  "cipher",
  "const-str",
  "criterion",
- "generic-array 1.1.1",
+ "generic-array 1.2.0",
  "numeric_cast",
  "rand",
  "std-next",
