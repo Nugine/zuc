@@ -8,9 +8,9 @@ use core::fmt;
 use core::mem::size_of;
 use std::ops::{BitXorAssign, ShlAssign};
 
-use generic_array::typenum;
-use generic_array::ArrayLength;
-use generic_array::GenericArray;
+use cipher::generic_array::typenum;
+use cipher::generic_array::ArrayLength;
+use cipher::generic_array::GenericArray;
 use numeric_cast::TruncatingCast;
 
 pub trait KeyStream {
@@ -41,13 +41,16 @@ where
     /// Mac Key Pair Type
     type KeyPair: MacKeyPair<Word = Self>;
 
-    type ByteSize: ArrayLength;
+    type ByteSize: ArrayLength<u8>;
 
     /// generate word
     fn gen_word(zuc: &mut impl KeyStream) -> Self;
 
     /// convert key from big endian bytes
     fn from_be_slice(chunk: &[u8]) -> Self;
+
+    /// convert key to big endian bytes
+    fn to_be_array(self) -> GenericArray<u8, Self::ByteSize>;
 
     /// test the highest bit of the word
     fn test_high_bit(&self) -> bool;
@@ -89,6 +92,11 @@ impl MacWord for u32 {
             Ok(arr) => u32::from_be_bytes(arr),
             Err(_) => unreachable!(),
         }
+    }
+
+    #[inline(always)]
+    fn to_be_array(self) -> GenericArray<u8, Self::ByteSize> {
+        GenericArray::from(self.to_be_bytes())
     }
 
     #[inline(always)]
@@ -135,6 +143,11 @@ impl MacWord for u64 {
             Ok(arr) => u64::from_be_bytes(arr),
             Err(_) => unreachable!(),
         }
+    }
+
+    #[inline(always)]
+    fn to_be_array(self) -> GenericArray<u8, Self::ByteSize> {
+        GenericArray::from(self.to_be_bytes())
     }
 
     #[inline(always)]
@@ -187,6 +200,11 @@ impl MacWord for u128 {
             Ok(arr) => u128::from_be_bytes(arr),
             Err(_) => unreachable!(),
         }
+    }
+
+    #[inline(always)]
+    fn to_be_array(self) -> GenericArray<u8, Self::ByteSize> {
+        GenericArray::from(self.to_be_bytes())
     }
 
     #[inline(always)]

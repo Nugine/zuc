@@ -1,4 +1,4 @@
-use crate::mac::{MacCore, MacKeyPair};
+use crate::mac::{MacCore, MacKeyPair, MacWord};
 use crate::zuc128::Zuc128Core;
 
 use numeric_cast::TruncatingCast;
@@ -73,5 +73,36 @@ impl Zuc128Mac {
     #[must_use]
     pub fn compute(ik: &[u8; 16], iv: &[u8; 16], msg: &[u8], bitlen: usize) -> u32 {
         Self::new(ik, iv).finish(msg, bitlen)
+    }
+}
+
+impl digest::Update for Zuc128Mac {
+    fn update(&mut self, data: &[u8]) {
+        Zuc128Mac::update(self, data);
+    }
+}
+
+impl digest::OutputSizeUser for Zuc128Mac {
+    type OutputSize = digest::typenum::U4;
+}
+
+impl digest::FixedOutput for Zuc128Mac {
+    fn finalize_into(self, out: &mut digest::Output<Self>) {
+        let tag = self.finish(&[], 0);
+        *out = tag.to_be_array();
+    }
+}
+
+impl digest::MacMarker for Zuc128Mac {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_digest() {
+        fn require_digest_mac<T: digest::Mac>() {}
+
+        require_digest_mac::<Zuc128Mac>();
     }
 }
