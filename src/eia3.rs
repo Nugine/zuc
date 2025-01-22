@@ -1,4 +1,5 @@
 //! ZUC Confidentiality Algorithms
+use crate::mac::MacWord;
 use crate::zuc128_mac::Zuc128Mac;
 
 /// 128-EIA3: 3GPP Integrity algorithm
@@ -82,6 +83,25 @@ impl Eia3Mac {
         Self::new(count, bearer, direction, ik).finish(msg, bitlen)
     }
 }
+
+impl digest::Update for Eia3Mac {
+    fn update(&mut self, data: &[u8]) {
+        Eia3Mac::update(self, data);
+    }
+}
+
+impl digest::OutputSizeUser for Eia3Mac {
+    type OutputSize = digest::typenum::U4;
+}
+
+impl digest::FixedOutput for Eia3Mac {
+    fn finalize_into(self, out: &mut digest::Output<Self>) {
+        let tag = self.finish(&[], 0);
+        *out = tag.to_be_array();
+    }
+}
+
+impl digest::MacMarker for Eia3Mac {}
 
 #[cfg(test)]
 mod tests {
@@ -272,5 +292,12 @@ mod tests {
                 check(x, &[0, bp], x.mac);
             }
         }
+    }
+
+    #[test]
+    fn test_digest() {
+        fn require_digest_mac<T: digest::Mac>() {}
+
+        require_digest_mac::<Eia3Mac>();
     }
 }

@@ -98,6 +98,25 @@ const D_128: [u8; 16] = [
     0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b100_0000, 0b101_0010, 0b001_0000, 0b011_0000,
 ];
 
+impl<T: MacTag> digest::Update for Zuc256Mac<T> {
+    fn update(&mut self, data: &[u8]) {
+        Zuc256Mac::update(self, data);
+    }
+}
+
+impl<T: MacTag> digest::OutputSizeUser for Zuc256Mac<T> {
+    type OutputSize = <T as MacWord>::ByteSize;
+}
+
+impl<T: MacTag> digest::FixedOutput for Zuc256Mac<T> {
+    fn finalize_into(self, out: &mut digest::Output<Self>) {
+        let tag = self.finish(&[], 0);
+        *out = tag.to_be_array();
+    }
+}
+
+impl<T: MacTag> digest::MacMarker for Zuc256Mac<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +246,14 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_digest() {
+        fn require_digest_mac<T: digest::Mac>() {}
+
+        require_digest_mac::<Zuc256Mac<u32>>();
+        require_digest_mac::<Zuc256Mac<u64>>();
+        require_digest_mac::<Zuc256Mac<u128>>();
     }
 }
