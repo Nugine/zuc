@@ -35,7 +35,7 @@ pub mod zuc128 {
     mod stream_cipher;
 
     pub use self::keystream::Zuc128Keystream;
-    pub use self::mac::{zuc128_generate_mac, Zuc128Mac};
+    pub use self::mac::Zuc128Mac;
     pub use self::stream_cipher::{zuc128_xor_encrypt, Zuc128StreamCipher};
 }
 
@@ -48,7 +48,7 @@ pub mod zuc256 {
     mod stream_cipher;
 
     pub use self::keystream::Zuc256Keystream;
-    pub use self::mac::{zuc256_generate_mac, Zuc256Mac};
+    pub use self::mac::Zuc256Mac;
     pub use self::stream_cipher::Zuc256StreamCipher;
 }
 
@@ -69,7 +69,7 @@ pub mod eia3 {
 
     mod mac;
 
-    pub use self::mac::{eia3_generate_mac, Eia3Mac};
+    pub use self::mac::Eia3Mac;
 }
 
 pub use cipher;

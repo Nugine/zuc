@@ -5,39 +5,35 @@ use crate::zuc128::Zuc128Mac;
 
 /// 128-EIA3: 3GPP Integrity algorithm
 /// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
-///
-/// Input:
-/// - `count`:        32bit   counter
-/// - `bearer`:       5bit    carrier layer identification
-/// - `direction`:    1bit    transmission direction identification
-/// - `ik`:           128bit  integrity key
-/// - `length`:       32bit   bit length of plaintext information stream
-/// - `m`:            the input message
-///
-/// Output:
-/// - `u32`:        MAC(Message Authentication Code)
-///
-/// # Panics
-/// + Panics if `length` is greater than the bit length of `m`
-/// + Panics if `length` is greater than `usize::MAX`.
-#[must_use]
-pub fn eia3_generate_mac(
-    count: u32,
-    bearer: u8,
-    direction: u8,
-    ik: &[u8; 16],
-    length: u32,
-    m: &[u8],
-) -> u32 {
-    let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
-    Eia3Mac::compute(count, bearer, direction, ik, m, bitlen)
-}
-
-/// 128-EIA3: 3GPP Integrity algorithm
-/// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
 pub struct Eia3Mac(Zuc128Mac);
 
 impl Eia3Mac {
+    /// Compute the MAC of a message
+    ///
+    /// ## Input
+    /// | name      | size     | description                           |
+    /// | --------- | -------- | ------------------------------------- |
+    /// | count     | 32 bits  | counter                               |
+    /// | bearer    | 5 bits   | carrier layer identification          |
+    /// | direction | 1 bit    | transmission direction identification |
+    /// | ik        | 128 bits | integrity key                         |
+    /// | msg       | -        | the input message                     |
+    /// | bitlen    | -        | bit length of the input message       |
+    ///
+    /// ## Output
+    /// 32 bits MAC (Message Authentication Code)
+    #[must_use]
+    pub fn compute(
+        count: u32,
+        bearer: u8,
+        direction: u8,
+        ik: &[u8; 16],
+        msg: &[u8],
+        bitlen: usize,
+    ) -> u32 {
+        Self::new(count, bearer, direction, ik).finish(msg, bitlen)
+    }
+
     /// Create a 128-EIA3 MAC generator
     #[must_use]
     pub fn new(count: u32, bearer: u8, direction: u8, ik: &[u8; 16]) -> Self {
@@ -70,19 +66,6 @@ impl Eia3Mac {
     pub fn finish(self, tail: &[u8], bitlen: usize) -> u32 {
         self.0.finish(tail, bitlen)
     }
-
-    /// Compute the MAC of a message
-    #[must_use]
-    pub fn compute(
-        count: u32,
-        bearer: u8,
-        direction: u8,
-        ik: &[u8; 16],
-        msg: &[u8],
-        bitlen: usize,
-    ) -> u32 {
-        Self::new(count, bearer, direction, ik).finish(msg, bitlen)
-    }
 }
 
 impl digest::Update for Eia3Mac {
@@ -109,7 +92,6 @@ mod tests {
     use super::*;
 
     use const_str::hex;
-    use numeric_cast::NumericCast;
 
     struct Example {
         ik: [u8; 16],
@@ -245,7 +227,14 @@ mod tests {
     #[test]
     fn examples() {
         for x in ALL_EXAMPLES {
-            let mac = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length, x.m);
+            let mac = Eia3Mac::compute(
+                x.count,
+                x.bearer,
+                x.direction,
+                &x.ik,
+                x.m,
+                x.length as usize,
+            );
             assert_eq!(mac, x.mac);
         }
     }
@@ -254,22 +243,29 @@ mod tests {
     #[test]
     fn invalid_input() {
         let x = &EXAMPLE2;
-        let _ = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, x.length * 2, x.m);
+        let _ = Eia3Mac::compute(
+            x.count,
+            x.bearer,
+            x.direction,
+            &x.ik,
+            x.m,
+            x.length as usize * 2,
+        );
     }
 
     #[test]
     fn full_bitlen() {
         let x = &EXAMPLE5;
-        let length = x.m.len().numeric_cast::<u32>() * 8;
-        let mac = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        let bitlen = x.m.len() * 8;
+        let mac = Eia3Mac::compute(x.count, x.bearer, x.direction, &x.ik, x.m, bitlen);
         assert_eq!(mac, 0x2592_99ab); // generated from GmSSL
     }
 
     #[test]
     fn zero_bitlen() {
         let x = &EXAMPLE5;
-        let length = 0;
-        let mac = eia3_generate_mac(x.count, x.bearer, x.direction, &x.ik, length, x.m);
+        let bitlen = 0;
+        let mac = Eia3Mac::compute(x.count, x.bearer, x.direction, &x.ik, x.m, bitlen);
         assert_eq!(mac, 0x0787_bab1); // generated from GmSSL
     }
 

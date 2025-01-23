@@ -6,28 +6,6 @@ use core::mem::size_of;
 
 use stdx::default::default;
 
-/// ZUC256 MAC generation algorithm
-/// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
-///
-/// Input:
-/// - `<T>`:        u32/u64/u128    output MAC type
-/// - `ik`:         128bit          integrity key
-/// - `iv`:         128bit          initial vector
-/// - `length`:     32bit           The number of bits to be encrypted/decrypted.
-/// - `m`:          the input message
-///
-/// Output:
-/// - `T`:        MAC(Message Authentication Code)
-///
-/// # Panics
-/// + Panics if `length` is greater than the bit length of `m`
-/// + Panics if `length` is greater than `usize::MAX`.
-#[must_use]
-pub fn zuc256_generate_mac<T: MacTag>(ik: &[u8; 32], iv: &[u8; 23], length: u32, m: &[u8]) -> T {
-    let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
-    Zuc256Mac::compute(ik, iv, m, bitlen)
-}
-
 pub trait MacTag: MacWord {}
 impl MacTag for u32 {}
 impl MacTag for u64 {}
@@ -38,6 +16,24 @@ impl MacTag for u128 {}
 pub struct Zuc256Mac<T: MacTag>(MacCore<Zuc256Keystream, T>);
 
 impl<T: MacTag> Zuc256Mac<T> {
+    /// Compute the MAC of a message
+    ///
+    /// ## Input
+    /// | name   | size     | description                     |
+    /// | ------ | -------- | ------------------------------- |
+    /// | T      | -        | type of the output MAC          |
+    /// | ik     | 256 bits | integrity key                   |
+    /// | iv     | 184 bits | initial vector                  |
+    /// | msg    | -        | the input message               |
+    /// | bitlen | -        | bit length of the input message |
+    ///
+    /// ## Output
+    /// MAC (Message Authentication Code) with type `T`
+    #[must_use]
+    pub fn compute(ik: &[u8; 32], iv: &[u8; 23], msg: &[u8], bitlen: usize) -> T {
+        Self::new(ik, iv).finish(msg, bitlen)
+    }
+
     /// Create a new ZUC256 MAC generator
     #[must_use]
     pub fn new(ik: &[u8; 32], iv: &[u8; 23]) -> Self {
@@ -71,12 +67,6 @@ impl<T: MacTag> Zuc256Mac<T> {
         let _ = self.0.finish(tail, bitlen);
         self.0.tag ^= self.0.key.high();
         self.0.tag
-    }
-
-    /// Compute the MAC of a message
-    #[must_use]
-    pub fn compute(ik: &[u8; 32], iv: &[u8; 23], msg: &[u8], bitlen: usize) -> T {
-        Self::new(ik, iv).finish(msg, bitlen)
     }
 }
 
@@ -184,13 +174,13 @@ mod tests {
     #[test]
     fn examples() {
         for x in ALL_EXAMPLES {
-            let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, x.length, x.m);
+            let mac_32 = <Zuc256Mac<u32>>::compute(&x.k, &x.iv, x.m, x.length as usize);
             assert_eq!(mac_32, x.expected_32);
 
-            let mac_64 = zuc256_generate_mac::<u64>(&x.k, &x.iv, x.length, x.m);
+            let mac_64 = <Zuc256Mac<u64>>::compute(&x.k, &x.iv, x.m, x.length as usize);
             assert_eq!(mac_64, x.expected_64);
 
-            let mac_128 = zuc256_generate_mac::<u128>(&x.k, &x.iv, x.length, x.m);
+            let mac_128 = <Zuc256Mac<u128>>::compute(&x.k, &x.iv, x.m, x.length as usize);
             assert_eq!(mac_128, x.expected_128);
         }
     }
@@ -199,7 +189,7 @@ mod tests {
     fn special_bitlen() {
         let x = &EXAMPLE_MAC_2;
         let bitlen = 145;
-        let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, bitlen, x.m);
+        let mac_32 = <Zuc256Mac<u32>>::compute(&x.k, &x.iv, x.m, bitlen);
         let expected_32 = 0x213e_1ce5; // generated from GmSSL
         assert_eq!(mac_32, expected_32, "actual = {mac_32:08x}");
     }
@@ -210,7 +200,7 @@ mod tests {
 
         for x in examples {
             let bitlen = 0;
-            let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, bitlen, x.m);
+            let mac_32 = <Zuc256Mac<u32>>::compute(&x.k, &x.iv, x.m, bitlen);
             let expected_32 = 0x68dc_aaba; // generated from GmSSL
             assert_eq!(mac_32, expected_32, "actual = {mac_32:08x}");
         }

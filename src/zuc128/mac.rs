@@ -5,32 +5,28 @@ use crate::internal::mac::{MacCore, MacKeyPair, MacWord};
 use numeric_cast::TruncatingCast;
 use stdx::default::default;
 
-/// ZUC128 MAC generation algorithm
-/// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
-///
-/// Input:
-/// - `ik`:         128bit  integrity key
-/// - `iv`:         128bit  initial vector
-/// - `length`:     32bit   The number of bits to be encrypted/decrypted.
-/// - `m`:          the input message
-///
-/// Output:
-/// - `u32`:        MAC(Message Authentication Code)
-///
-/// # Panics
-/// + Panics if `length` is greater than the bit length of `m`
-/// + Panics if `length` is greater than `usize::MAX`.
-#[must_use]
-pub fn zuc128_generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) -> u32 {
-    let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
-    Zuc128Mac::compute(ik, iv, m, bitlen)
-}
-
 /// ZUC128 MAC generator
 /// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
 pub struct Zuc128Mac(MacCore<Zuc128Keystream, u32>);
 
 impl Zuc128Mac {
+    /// Compute the MAC of a message
+    ///
+    /// ## Input
+    /// | name   | size     | description                     |
+    /// | ------ | -------- | ------------------------------- |
+    /// | ik     | 128 bits | integrity key                   |
+    /// | iv     | 128 bits | initial vector                  |
+    /// | msg    | -        | the input message               |
+    /// | bitlen | -        | bit length of the input message |
+    ///
+    /// ## Output
+    /// 32 bits MAC (Message Authentication Code)
+    #[must_use]
+    pub fn compute(ik: &[u8; 16], iv: &[u8; 16], msg: &[u8], bitlen: usize) -> u32 {
+        Self::new(ik, iv).finish(msg, bitlen)
+    }
+
     /// Create a new ZUC128 MAC generator
     #[must_use]
     pub fn new(ik: &[u8; 16], iv: &[u8; 16]) -> Self {
@@ -68,12 +64,6 @@ impl Zuc128Mac {
         }
 
         tag
-    }
-
-    /// Compute the MAC of a message
-    #[must_use]
-    pub fn compute(ik: &[u8; 16], iv: &[u8; 16], msg: &[u8], bitlen: usize) -> u32 {
-        Self::new(ik, iv).finish(msg, bitlen)
     }
 }
 

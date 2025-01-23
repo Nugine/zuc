@@ -39,9 +39,9 @@ fn eia3_mac(c: &mut Criterion) {
         let count = 0x561e_b2dd;
         let bearer = 0x14;
         let direction = 0;
-        let length = input.len() as u32 * 8 - 15;
+        let length = input.len() * 8 - 15;
         let ik = &hex!("47 05 41 25 56 1e b2 dd a9 40 59 da 05 09 78 50");
-        zuc::eia3::eia3_generate_mac(count, bearer, direction, ik, length, input)
+        zuc::eia3::Eia3Mac::compute(count, bearer, direction, ik, input, length)
     };
 
     let mut group = c.benchmark_group("eia3_mac");
@@ -65,10 +65,10 @@ fn eia3_mac(c: &mut Criterion) {
 
 fn zuc256_mac(c: &mut Criterion) {
     let mac = |input: &[u8]| -> u128 {
-        let length = input.len() as u32 * 8 - 15;
+        let length = input.len() * 8 - 15;
         let ik = &[0xff; 32];
         let iv = &[0xff; 23];
-        zuc::zuc256::zuc256_generate_mac::<u128>(ik, iv, length, input)
+        zuc::zuc256::Zuc256Mac::<u128>::compute(ik, iv, input, length)
     };
 
     let mut group = c.benchmark_group("zuc256_mac_128");
