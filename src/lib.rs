@@ -28,8 +28,8 @@ mod zuc128_mac;
 pub use self::zuc128_mac::zuc128_generate_mac;
 pub use self::zuc128_mac::Zuc128Mac;
 
-mod eea3_128;
-pub use eea3_128::{eea3_128_encrypt, zuc128_xor_encrypt};
+mod eea3;
+pub use self::eea3::{eea3_encrypt, zuc128_xor_encrypt};
 
 mod eia3;
 pub use self::eia3::eia3_generate_mac;

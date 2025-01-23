@@ -69,7 +69,7 @@ pub fn zuc128_xor_encrypt(ck: &[u8; 16], iv: &[u8; 16], length: u32, ibs: &[u8])
 /// + Panics if `length` is greater than the length of `ibs` times 8.
 /// + Panics if `length` is greater than `usize::MAX`.
 #[must_use]
-pub fn eea3_128_encrypt(
+pub fn eea3_encrypt(
     count: u32,
     bearer: u8,
     direction: u8,
@@ -270,7 +270,7 @@ mod tests {
     fn examples() {
         let examples = [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3, &EXAMPLE4, &EXAMPLE5];
         for x in examples {
-            let obs = eea3_128_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length, x.ibs);
+            let obs = eea3_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length, x.ibs);
             assert_eq!(obs, x.obs);
         }
     }
@@ -279,6 +279,6 @@ mod tests {
     #[test]
     fn invalid_input() {
         let x = &EXAMPLE1;
-        let _ = eea3_128_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length * 2, x.ibs);
+        let _ = eea3_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length * 2, x.ibs);
     }
 }
