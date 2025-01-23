@@ -1,4 +1,5 @@
-//! ZUC Confidentiality Algorithms
+//! 128-EIA3: 3GPP Integrity algorithm
+
 use crate::mac::MacWord;
 use crate::zuc128_mac::Zuc128Mac;
 
@@ -29,14 +30,14 @@ pub fn eia3_generate_mac(
     m: &[u8],
 ) -> u32 {
     let bitlen = usize::try_from(length).expect("`length` is greater than `usize::MAX`");
-    Eia3Mac::compute(count, bearer, direction, ik, m, bitlen)
+    Eia3::compute(count, bearer, direction, ik, m, bitlen)
 }
 
 /// 128-EIA3: 3GPP Integrity algorithm
 /// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
-pub struct Eia3Mac(Zuc128Mac);
+pub struct Eia3(Zuc128Mac);
 
-impl Eia3Mac {
+impl Eia3 {
     /// Create a 128-EIA3 MAC generator
     #[must_use]
     pub fn new(count: u32, bearer: u8, direction: u8, ik: &[u8; 16]) -> Self {
@@ -84,24 +85,24 @@ impl Eia3Mac {
     }
 }
 
-impl digest::Update for Eia3Mac {
+impl digest::Update for Eia3 {
     fn update(&mut self, data: &[u8]) {
-        Eia3Mac::update(self, data);
+        Eia3::update(self, data);
     }
 }
 
-impl digest::OutputSizeUser for Eia3Mac {
+impl digest::OutputSizeUser for Eia3 {
     type OutputSize = digest::typenum::U4;
 }
 
-impl digest::FixedOutput for Eia3Mac {
+impl digest::FixedOutput for Eia3 {
     fn finalize_into(self, out: &mut digest::Output<Self>) {
         let tag = self.finish(&[], 0);
         *out = tag.to_be_array();
     }
 }
 
-impl digest::MacMarker for Eia3Mac {}
+impl digest::MacMarker for Eia3 {}
 
 #[cfg(test)]
 mod tests {
@@ -275,7 +276,7 @@ mod tests {
     #[test]
     fn streaming() {
         fn check(x: &Example, parts: &[usize], expected: u32) {
-            let mut mac = Eia3Mac::new(x.count, x.bearer, x.direction, &x.ik);
+            let mut mac = Eia3::new(x.count, x.bearer, x.direction, &x.ik);
 
             for i in 1..parts.len() {
                 mac.update(&x.m[parts[i - 1]..parts[i]]);
@@ -298,6 +299,6 @@ mod tests {
     fn test_digest() {
         fn require_digest_mac<T: digest::Mac>() {}
 
-        require_digest_mac::<Eia3Mac>();
+        require_digest_mac::<Eia3>();
     }
 }
