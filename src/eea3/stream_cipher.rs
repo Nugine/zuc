@@ -1,6 +1,6 @@
 use super::Eea3Keystream;
 
-use crate::internal::stream_cipher::xor_to_vec;
+use crate::internal::stream_cipher::xor_inplace;
 
 /// 128-EEA3 stream cipher
 /// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
@@ -9,32 +9,25 @@ pub type Eea3StreamCipher = cipher::StreamCipherCoreWrapper<Eea3Keystream>;
 /// 128-EEA3: 3GPP confidentiality algorithm
 /// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
 ///
-/// Input:
-/// - count:        32bit   counter
-/// - bearer:       5bit    carrier layer identification
-/// - direction:    1bit    transmission direction identification
-/// - ck:           128bit  confidentiality key
-/// - length:       32bit   bit length of plaintext information stream
-/// - ibs:          input bitstream
-///
-/// Output:
-/// - [`Vec<u8>`]:  encrypted bit stream
-///
-/// # Panics
-/// + Panics if `length` is greater than the length of `ibs` times 8.
-/// + Panics if `length` is greater than `usize::MAX`.
-#[must_use]
-pub fn eea3_encrypt(
+/// ## Input
+/// | name      | size     | description                           |
+/// | --------- | -------- | ------------------------------------- |
+/// | count     | 32 bits  | counter                               |
+/// | bearer    | 5 bits   | carrier layer identification          |
+/// | direction | 1 bit    | transmission direction identification |
+/// | ck        | 128 bits | confidentiality key                   |
+/// | data      | -        | the bitstream                         |
+/// | bitlen    | -        | bit length of the bitstream           |
+pub fn eea3_xor_inplace(
     count: u32,
     bearer: u8,
     direction: u8,
     ck: &[u8; 16],
-    length: u32,
-    ibs: &[u8],
-) -> Vec<u8> {
-    let bitlen = usize::try_from(length).expect("bit length overflow");
+    data: &mut [u8],
+    bitlen: usize,
+) {
     let mut eea3 = Eea3Keystream::new(count, bearer, direction, ck);
-    xor_to_vec(&mut eea3, ibs, bitlen)
+    xor_inplace(&mut eea3, data, bitlen);
 }
 
 #[cfg(test)]
@@ -217,8 +210,16 @@ mod tests {
     #[test]
     fn examples() {
         for x in ALL_EXAMPLES {
-            let obs = eea3_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length, x.ibs);
-            assert_eq!(obs, x.obs);
+            let mut data = x.ibs.to_vec();
+            eea3_xor_inplace(
+                x.count,
+                x.bearer,
+                x.direction,
+                &x.ck,
+                &mut data,
+                x.length as usize,
+            );
+            assert_eq!(data, x.obs);
         }
     }
 
@@ -226,6 +227,8 @@ mod tests {
     #[test]
     fn invalid_input() {
         let x = &EXAMPLE1;
-        let _ = eea3_encrypt(x.count, x.bearer, x.direction, &x.ck, x.length * 2, x.ibs);
+        let mut data = x.ibs.to_vec();
+        let bitlen = x.length as usize * 2;
+        eea3_xor_inplace(x.count, x.bearer, x.direction, &x.ck, &mut data, bitlen);
     }
 }

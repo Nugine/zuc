@@ -28,9 +28,3 @@ pub fn xor_inplace(zuc: &mut impl Keystream<Word = u32>, data: &mut [u8], bitlen
         data[i] = 0;
     }
 }
-
-pub fn xor_to_vec(zuc: &mut impl Keystream<Word = u32>, ibs: &[u8], bitlen: usize) -> Vec<u8> {
-    let mut res = ibs.to_vec();
-    xor_inplace(zuc, &mut res, bitlen);
-    res
-}

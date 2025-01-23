@@ -36,7 +36,7 @@ pub mod zuc128 {
 
     pub use self::keystream::Zuc128Keystream;
     pub use self::mac::Zuc128Mac;
-    pub use self::stream_cipher::{zuc128_xor_encrypt, Zuc128StreamCipher};
+    pub use self::stream_cipher::{zuc128_xor_inplace, Zuc128StreamCipher};
 }
 
 pub mod zuc256 {
@@ -60,7 +60,7 @@ pub mod eea3 {
     mod stream_cipher;
 
     pub use self::keystream::Eea3Keystream;
-    pub use self::stream_cipher::{eea3_encrypt, Eea3StreamCipher};
+    pub use self::stream_cipher::{eea3_xor_inplace, Eea3StreamCipher};
 }
 
 pub mod eia3 {
