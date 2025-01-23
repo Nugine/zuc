@@ -1,6 +1,6 @@
 //! 256-bit unsigned integer
 
-use std::ops::ShlAssign;
+use core::ops::ShlAssign;
 
 /// 256-bit unsigned integer
 #[derive(Copy, Clone)]
@@ -13,12 +13,14 @@ pub struct U256 {
 
 impl U256 {
     /// Create a [`U256`] from two u128
+    #[inline(always)]
     pub fn new(high: u128, low: u128) -> Self {
         U256 { high, low }
     }
 }
 
 impl ShlAssign<usize> for U256 {
+    #[inline(always)]
     fn shl_assign(&mut self, rhs: usize) {
         if rhs >= 256 {
             self.high = 0;

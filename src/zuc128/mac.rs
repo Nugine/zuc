@@ -1,5 +1,6 @@
-use crate::mac::{MacCore, MacKeyPair, MacWord};
-use crate::zuc128::Zuc128Core;
+use super::Zuc128Keystream;
+
+use crate::internal::mac::{MacCore, MacKeyPair, MacWord};
 
 use numeric_cast::TruncatingCast;
 use stdx::default::default;
@@ -27,13 +28,13 @@ pub fn zuc128_generate_mac(ik: &[u8; 16], iv: &[u8; 16], length: u32, m: &[u8]) 
 
 /// ZUC128 MAC generator
 /// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
-pub struct Zuc128Mac(MacCore<Zuc128Core, u32>);
+pub struct Zuc128Mac(MacCore<Zuc128Keystream, u32>);
 
 impl Zuc128Mac {
     /// Create a new ZUC128 MAC generator
     #[must_use]
     pub fn new(ik: &[u8; 16], iv: &[u8; 16]) -> Self {
-        let mut zuc = Zuc128Core::new(ik, iv);
+        let mut zuc = Zuc128Keystream::new(ik, iv);
         let key = u64::gen_key_pair(&mut zuc);
 
         Self(MacCore {

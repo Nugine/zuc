@@ -1,8 +1,5 @@
-//! ZUC128 Algorithms
-
-use crate::zuc::Zuc;
-
-use cipher::consts::{U1, U16, U4};
+use crate::internal::keystream::Keystream;
+use crate::internal::zuc::Zuc;
 
 /// (d<<8) constants
 static D: [u32; 16] = [
@@ -24,19 +21,15 @@ static D: [u32; 16] = [
     0b_0100_0111_1010_1100_0000_0000,
 ];
 
-/// ZUC128 stream cipher
-/// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=8C41A3AEECCA52B5C0011C8010CF0715))
-pub type Zuc128 = cipher::StreamCipherCoreWrapper<Zuc128Core>;
-
 /// ZUC128 keystream generator
 /// ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=8C41A3AEECCA52B5C0011C8010CF0715))
 #[derive(Debug, Clone)]
-pub struct Zuc128Core {
+pub struct Zuc128Keystream {
     /// zuc core
     core: Zuc,
 }
 
-impl Zuc128Core {
+impl Zuc128Keystream {
     /// Creates a ZUC128 keystream generator
     #[must_use]
     pub fn new(key: &[u8; 16], iv: &[u8; 16]) -> Self {
@@ -56,7 +49,15 @@ impl Zuc128Core {
     }
 }
 
-impl Iterator for Zuc128Core {
+impl Keystream for Zuc128Keystream {
+    type Word = u32;
+
+    fn next_key(&mut self) -> Self::Word {
+        self.generate()
+    }
+}
+
+impl Iterator for Zuc128Keystream {
     type Item = u32;
 
     #[inline]
@@ -65,42 +66,42 @@ impl Iterator for Zuc128Core {
     }
 }
 
-impl cipher::AlgorithmName for Zuc128Core {
+impl cipher::AlgorithmName for Zuc128Keystream {
     fn write_alg_name(f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Zuc128")
     }
 }
 
-impl cipher::KeySizeUser for Zuc128Core {
-    type KeySize = U16;
+impl cipher::KeySizeUser for Zuc128Keystream {
+    type KeySize = cipher::typenum::U16;
 }
 
-impl cipher::IvSizeUser for Zuc128Core {
-    type IvSize = U16;
+impl cipher::IvSizeUser for Zuc128Keystream {
+    type IvSize = cipher::typenum::U16;
 }
 
-impl cipher::BlockSizeUser for Zuc128Core {
-    type BlockSize = U4;
+impl cipher::BlockSizeUser for Zuc128Keystream {
+    type BlockSize = cipher::typenum::U4;
 }
 
-impl cipher::ParBlocksSizeUser for Zuc128Core {
-    type ParBlocksSize = U1;
+impl cipher::ParBlocksSizeUser for Zuc128Keystream {
+    type ParBlocksSize = cipher::typenum::U1;
 }
 
-impl cipher::KeyIvInit for Zuc128Core {
+impl cipher::KeyIvInit for Zuc128Keystream {
     fn new(key: &cipher::Key<Self>, iv: &cipher::Iv<Self>) -> Self {
-        Zuc128Core::new(key.as_ref(), iv.as_ref())
+        Zuc128Keystream::new(key.as_ref(), iv.as_ref())
     }
 }
 
-impl cipher::StreamBackend for Zuc128Core {
+impl cipher::StreamBackend for Zuc128Keystream {
     fn gen_ks_block(&mut self, block: &mut cipher::Block<Self>) {
         let z = self.generate();
         block.copy_from_slice(&z.to_be_bytes());
     }
 }
 
-impl cipher::StreamCipherCore for Zuc128Core {
+impl cipher::StreamCipherCore for Zuc128Keystream {
     fn remaining_blocks(&self) -> Option<usize> {
         None
     }
@@ -114,7 +115,9 @@ impl cipher::StreamCipherCore for Zuc128Core {
 mod tests {
     use super::*;
 
-    // examples from http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=8C41A3AEECCA52B5C0011C8010CF0715
+    /// Examples
+    ///
+    /// FROM <http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=8C41A3AEECCA52B5C0011C8010CF0715>
     struct Example {
         k: [u8; 16],
         iv: [u8; 16],
@@ -238,10 +241,12 @@ mod tests {
         ],
     };
 
+    static ALL_EXAMPLES: &[&Example] = &[&EXAMPLE1, &EXAMPLE2, &EXAMPLE3];
+
     #[test]
     fn examples() {
-        for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3] {
-            let mut zuc = Zuc128Core::new(k, iv);
+        for Example { k, iv, expected } in ALL_EXAMPLES {
+            let mut zuc = Zuc128Keystream::new(k, iv);
 
             {
                 let mut zuc = zuc.clone();
@@ -285,9 +290,9 @@ mod tests {
     fn cipher() {
         use cipher::{Block, KeyIvInit, StreamBackend};
 
-        for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2, &EXAMPLE3] {
-            let mut zuc = <Zuc128Core as KeyIvInit>::new(k.into(), iv.into());
-            let mut block = Block::<Zuc128Core>::default();
+        for Example { k, iv, expected } in ALL_EXAMPLES {
+            let mut zuc = <Zuc128Keystream as KeyIvInit>::new(k.into(), iv.into());
+            let mut block = Block::<Zuc128Keystream>::default();
             for i in [1, 2] {
                 zuc.gen_ks_block(&mut block);
                 assert_eq!(u32::from_be_bytes(block.into()), expected[i][6]);

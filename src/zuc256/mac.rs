@@ -1,6 +1,6 @@
-//! ZUC-256 Algorithms MAC generate
-use crate::mac::{MacCore, MacKeyPair, MacWord};
-use crate::zuc256::Zuc256Core;
+use super::Zuc256Keystream;
+
+use crate::internal::mac::{MacCore, MacKeyPair, MacWord};
 
 use core::mem::size_of;
 
@@ -35,7 +35,7 @@ impl MacTag for u128 {}
 
 /// ZUC256 MAC generator
 /// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
-pub struct Zuc256Mac<T: MacTag>(MacCore<Zuc256Core, T>);
+pub struct Zuc256Mac<T: MacTag>(MacCore<Zuc256Keystream, T>);
 
 impl<T: MacTag> Zuc256Mac<T> {
     /// Create a new ZUC256 MAC generator
@@ -48,7 +48,7 @@ impl<T: MacTag> Zuc256Mac<T> {
             _ => unreachable!(),
         };
 
-        let mut zuc = Zuc256Core::new_with_d(ik, iv, d);
+        let mut zuc = Zuc256Keystream::new_with_d(ik, iv, d);
         let tag: T = T::gen_word(&mut zuc);
         let key: T::KeyPair = T::KeyPair::gen_key_pair(&mut zuc);
 
@@ -121,8 +121,10 @@ impl<T: MacTag> digest::MacMarker for Zuc256Mac<T> {}
 mod tests {
     use super::*;
 
-    // examples from http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf
-    struct ExampleMAC {
+    /// Examples
+    ///
+    /// FROM <http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf>
+    struct Example {
         k: [u8; 32],
         iv: [u8; 23],
         length: u32,
@@ -132,7 +134,7 @@ mod tests {
         expected_128: u128,
     }
 
-    static EXAMPLE_MAC_1: ExampleMAC = ExampleMAC {
+    static EXAMPLE_MAC_1: Example = Example {
         k: [0; 32],
         iv: [0; 23],
         length: 400,
@@ -142,7 +144,7 @@ mod tests {
         expected_128: 0xd85e_54bb_cb96_0096_7084_c952_a165_4b26,
     };
 
-    static EXAMPLE_MAC_2: ExampleMAC = ExampleMAC {
+    static EXAMPLE_MAC_2: Example = Example {
         k: [0; 32],
         iv: [0; 23],
         length: 4000,
@@ -152,7 +154,7 @@ mod tests {
         expected_128: 0xdf1e_8307_b31c_c62b_eca1_ac6f_8190_c22f,
     };
 
-    static EXAMPLE_MAC_3: ExampleMAC = ExampleMAC {
+    static EXAMPLE_MAC_3: Example = Example {
         k: [0xff; 32],
         iv: [0xff; 23],
         length: 400,
@@ -162,7 +164,7 @@ mod tests {
         expected_128: 0xa35b_b274_b567_c48b_2831_9f11_1af3_4fbd,
     };
 
-    static EXAMPLE_MAC_4: ExampleMAC = ExampleMAC {
+    static EXAMPLE_MAC_4: Example = Example {
         k: [0xff; 32],
         iv: [0xff; 23],
         length: 4000,
@@ -172,7 +174,7 @@ mod tests {
         expected_128: 0x3a83_b554_be40_8ca5_4941_24ed_9d47_3205,
     };
 
-    static ALL_EXAMPLES: &[&ExampleMAC] = &[
+    static ALL_EXAMPLES: &[&Example] = &[
         &EXAMPLE_MAC_1,
         &EXAMPLE_MAC_2,
         &EXAMPLE_MAC_3,
@@ -180,7 +182,7 @@ mod tests {
     ];
 
     #[test]
-    fn examples_mac() {
+    fn examples() {
         for x in ALL_EXAMPLES {
             let mac_32 = zuc256_generate_mac::<u32>(&x.k, &x.iv, x.length, x.m);
             assert_eq!(mac_32, x.expected_32);
@@ -216,7 +218,7 @@ mod tests {
 
     #[test]
     fn streaming() {
-        fn check<T: MacTag>(x: &ExampleMAC, parts: &[usize], expected: T) {
+        fn check<T: MacTag>(x: &Example, parts: &[usize], expected: T) {
             let mut mac = Zuc256Mac::<T>::new(&x.k, &x.iv);
 
             for i in 1..parts.len() {

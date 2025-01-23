@@ -1,35 +1,14 @@
-//! private for sealed trait
-
-use crate::u256::U256;
-use crate::zuc128::Zuc128Core;
-use crate::zuc256::Zuc256Core;
+use super::keystream::Keystream;
+use super::u256::U256;
 
 use core::fmt;
 use core::mem::size_of;
-use std::ops::{BitXorAssign, ShlAssign};
+use core::ops::{BitXorAssign, ShlAssign};
 
 use cipher::generic_array::typenum;
 use cipher::generic_array::ArrayLength;
 use cipher::generic_array::GenericArray;
 use numeric_cast::TruncatingCast;
-
-pub trait KeyStream {
-    fn next_key(&mut self) -> u32;
-}
-
-impl KeyStream for Zuc128Core {
-    #[inline(always)]
-    fn next_key(&mut self) -> u32 {
-        self.generate()
-    }
-}
-
-impl KeyStream for Zuc256Core {
-    #[inline(always)]
-    fn next_key(&mut self) -> u32 {
-        self.generate()
-    }
-}
 
 /// Mac Word
 pub trait MacWord
@@ -44,7 +23,7 @@ where
     type ByteSize: ArrayLength<u8>;
 
     /// generate word
-    fn gen_word(zuc: &mut impl KeyStream) -> Self;
+    fn gen_word(zuc: &mut impl Keystream<Word = u32>) -> Self;
 
     /// convert key from big endian bytes
     fn from_be_slice(chunk: &[u8]) -> Self;
@@ -66,7 +45,7 @@ where
     type Word: MacWord<KeyPair = Self>;
 
     /// generate key pair
-    fn gen_key_pair(zuc: &mut impl KeyStream) -> Self;
+    fn gen_key_pair(zuc: &mut impl Keystream<Word = u32>) -> Self;
 
     /// get high bits
     fn high(&self) -> Self::Word;
@@ -82,7 +61,7 @@ impl MacWord for u32 {
     type ByteSize = typenum::U4;
 
     #[inline(always)]
-    fn gen_word(zuc: &mut impl KeyStream) -> u32 {
+    fn gen_word(zuc: &mut impl Keystream<Word = u32>) -> u32 {
         zuc.next_key()
     }
 
@@ -111,7 +90,7 @@ impl MacKeyPair for u64 {
     type Word = u32;
 
     #[inline(always)]
-    fn gen_key_pair(zuc: &mut impl KeyStream) -> u64 {
+    fn gen_key_pair(zuc: &mut impl Keystream<Word = u32>) -> u64 {
         u64::gen_word(zuc)
     }
 
@@ -133,7 +112,7 @@ impl MacWord for u64 {
     type ByteSize = typenum::U8;
 
     #[inline(always)]
-    fn gen_word(zuc: &mut impl KeyStream) -> u64 {
+    fn gen_word(zuc: &mut impl Keystream<Word = u32>) -> u64 {
         (u64::from(zuc.next_key()) << 32) | u64::from(zuc.next_key())
     }
 
@@ -162,7 +141,7 @@ impl MacKeyPair for u128 {
     type Word = u64;
 
     #[inline(always)]
-    fn gen_key_pair(zuc: &mut impl KeyStream) -> u128 {
+    fn gen_key_pair(zuc: &mut impl Keystream<Word = u32>) -> u128 {
         u128::gen_word(zuc)
     }
 
@@ -184,7 +163,7 @@ impl MacWord for u128 {
     type ByteSize = typenum::U16;
 
     #[inline(always)]
-    fn gen_word(zuc: &mut impl KeyStream) -> u128 {
+    fn gen_word(zuc: &mut impl Keystream<Word = u32>) -> u128 {
         let a = (
             u128::from(zuc.next_key()) << 96,
             u128::from(zuc.next_key()) << 64,
@@ -218,7 +197,7 @@ impl MacWord for u128 {
 impl MacKeyPair for U256 {
     type Word = u128;
 
-    fn gen_key_pair(zuc: &mut impl KeyStream) -> U256 {
+    fn gen_key_pair(zuc: &mut impl Keystream<Word = u32>) -> U256 {
         let high = u128::gen_word(zuc);
         let low = u128::gen_word(zuc);
         U256::new(high, low)
@@ -240,7 +219,7 @@ fn copy(dst: &mut [u8], src: &[u8]) {
 
 pub struct MacCore<S, T>
 where
-    S: KeyStream,
+    S: Keystream,
     T: MacWord,
 {
     pub zuc: S,
@@ -253,7 +232,7 @@ where
 
 impl<S, T> MacCore<S, T>
 where
-    S: KeyStream,
+    S: Keystream<Word = u32>,
     T: MacWord,
 {
     #[inline(always)]

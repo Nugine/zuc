@@ -17,30 +17,60 @@
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-mod mac;
-mod u256;
-mod zuc;
+mod internal {
+    pub mod u256;
+    pub mod zuc;
 
-mod zuc128;
-pub use self::zuc128::{Zuc128, Zuc128Core};
+    pub mod keystream;
+    pub mod mac;
+    pub mod stream_cipher;
+}
 
-mod zuc128_mac;
-pub use self::zuc128_mac::zuc128_generate_mac;
-pub use self::zuc128_mac::Zuc128Mac;
+pub mod zuc128 {
+    //! ZUC128 Algorithms
+    //! ([GB/T 33133.1-2016](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=8C41A3AEECCA52B5C0011C8010CF0715))
 
-mod eea3;
-pub use self::eea3::Eea3;
-pub use self::eea3::{eea3_encrypt, zuc128_xor_encrypt};
+    mod keystream;
+    mod mac;
+    mod stream_cipher;
 
-mod eia3;
-pub use self::eia3::eia3_generate_mac;
-pub use self::eia3::Eia3;
+    pub use self::keystream::Zuc128Keystream;
+    pub use self::mac::{zuc128_generate_mac, Zuc128Mac};
+    pub use self::stream_cipher::{zuc128_xor_encrypt, Zuc128StreamCipher};
+}
 
-mod zuc256;
-pub use self::zuc256::{Zuc256, Zuc256Core};
+pub mod zuc256 {
+    //! ZUC256 Algorithms
+    //! ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
 
-mod zuc256_mac;
-pub use self::zuc256_mac::zuc256_generate_mac;
-pub use self::zuc256_mac::Zuc256Mac;
+    mod keystream;
+    mod mac;
+    mod stream_cipher;
+
+    pub use self::keystream::Zuc256Keystream;
+    pub use self::mac::{zuc256_generate_mac, Zuc256Mac};
+    pub use self::stream_cipher::Zuc256StreamCipher;
+}
+
+pub mod eea3 {
+    //! 128-EEA3 Algorithms
+    //! ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
+
+    mod keystream;
+    mod stream_cipher;
+
+    pub use self::keystream::Eea3Keystream;
+    pub use self::stream_cipher::{eea3_encrypt, Eea3StreamCipher};
+}
+
+pub mod eia3 {
+    //! 128-EIA3 Algorithms
+    //! ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
+
+    mod mac;
+
+    pub use self::mac::{eia3_generate_mac, Eia3Mac};
+}
 
 pub use cipher;
+pub use digest;

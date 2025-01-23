@@ -1,8 +1,5 @@
-//! ZUC-256 Algorithms
-
-use crate::zuc::Zuc;
-
-use cipher::consts::{U1, U23, U32, U4};
+use crate::internal::keystream::Keystream;
+use crate::internal::zuc::Zuc;
 
 /// d constants
 static D: [u8; 16] = [
@@ -29,23 +26,19 @@ fn concat_bits(a: u8, b: u8, c: u8, d: u8) -> u32 {
     (u32::from(a) << 23) | (u32::from(b) << 16) | (u32::from(c) << 8) | u32::from(d)
 }
 
-/// ZUC256 stream cipher
-/// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
-pub type Zuc256 = cipher::StreamCipherCoreWrapper<Zuc256Core>;
-
 /// ZUC256 keystream generator
 /// ([ZUC256-version1.1](http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf))
 #[derive(Debug, Clone)]
-pub struct Zuc256Core {
+pub struct Zuc256Keystream {
     /// zuc core
     core: Zuc,
 }
 
-impl Zuc256Core {
+impl Zuc256Keystream {
     /// Creates a ZUC256 keystream generator
     #[must_use]
     pub fn new(k: &[u8; 32], iv: &[u8; 23]) -> Self {
-        Zuc256Core::new_with_d(k, iv, &D)
+        Zuc256Keystream::new_with_d(k, iv, &D)
     }
 
     /// Creates a [`Zuc256Core`] with specific d constants
@@ -88,7 +81,16 @@ impl Zuc256Core {
     }
 }
 
-impl Iterator for Zuc256Core {
+impl Keystream for Zuc256Keystream {
+    type Word = u32;
+
+    #[inline]
+    fn next_key(&mut self) -> Self::Word {
+        self.generate()
+    }
+}
+
+impl Iterator for Zuc256Keystream {
     type Item = u32;
 
     #[inline]
@@ -97,42 +99,42 @@ impl Iterator for Zuc256Core {
     }
 }
 
-impl cipher::AlgorithmName for Zuc256Core {
+impl cipher::AlgorithmName for Zuc256Keystream {
     fn write_alg_name(f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Zuc256")
     }
 }
 
-impl cipher::KeySizeUser for Zuc256Core {
-    type KeySize = U32;
+impl cipher::KeySizeUser for Zuc256Keystream {
+    type KeySize = cipher::typenum::U32;
 }
 
-impl cipher::IvSizeUser for Zuc256Core {
-    type IvSize = U23;
+impl cipher::IvSizeUser for Zuc256Keystream {
+    type IvSize = cipher::typenum::U23;
 }
 
-impl cipher::BlockSizeUser for Zuc256Core {
-    type BlockSize = U4;
+impl cipher::BlockSizeUser for Zuc256Keystream {
+    type BlockSize = cipher::typenum::U4;
 }
 
-impl cipher::ParBlocksSizeUser for Zuc256Core {
-    type ParBlocksSize = U1;
+impl cipher::ParBlocksSizeUser for Zuc256Keystream {
+    type ParBlocksSize = cipher::typenum::U1;
 }
 
-impl cipher::KeyIvInit for Zuc256Core {
+impl cipher::KeyIvInit for Zuc256Keystream {
     fn new(key: &cipher::Key<Self>, iv: &cipher::Iv<Self>) -> Self {
-        Zuc256Core::new(key.as_ref(), iv.as_ref())
+        Zuc256Keystream::new(key.as_ref(), iv.as_ref())
     }
 }
 
-impl cipher::StreamBackend for Zuc256Core {
+impl cipher::StreamBackend for Zuc256Keystream {
     fn gen_ks_block(&mut self, block: &mut cipher::Block<Self>) {
         let z = self.generate();
         block.copy_from_slice(&z.to_be_bytes());
     }
 }
 
-impl cipher::StreamCipherCore for Zuc256Core {
+impl cipher::StreamCipherCore for Zuc256Keystream {
     fn remaining_blocks(&self) -> Option<usize> {
         None
     }
@@ -146,7 +148,9 @@ impl cipher::StreamCipherCore for Zuc256Core {
 mod tests {
     use super::*;
 
-    // examples from http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf
+    /// Examples
+    ///
+    /// FROM <http://www.is.cas.cn/ztzl2016/zouchongzhi/201801/W020180416526664982687.pdf>
     struct Example {
         k: [u8; 32],
         iv: [u8; 23],
@@ -207,10 +211,12 @@ mod tests {
         ],
     };
 
+    static ALL_EXAMPLES: &[&Example] = &[&EXAMPLE1, &EXAMPLE2];
+
     #[test]
     fn examples() {
-        for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2] {
-            let mut zuc = Zuc256Core::new(k, iv);
+        for Example { k, iv, expected } in ALL_EXAMPLES {
+            let mut zuc = Zuc256Keystream::new(k, iv);
             for i in 0..expected.len() {
                 assert_eq!(zuc.generate(), expected[i]);
             }
@@ -221,9 +227,9 @@ mod tests {
     fn cipher() {
         use cipher::{Block, KeyIvInit, StreamBackend};
 
-        for Example { k, iv, expected } in [&EXAMPLE1, &EXAMPLE2] {
-            let mut zuc = <Zuc256Core as KeyIvInit>::new(k.into(), iv.into());
-            let mut block = Block::<Zuc256Core>::default();
+        for Example { k, iv, expected } in ALL_EXAMPLES {
+            let mut zuc = <Zuc256Keystream as KeyIvInit>::new(k.into(), iv.into());
+            let mut block = Block::<Zuc256Keystream>::default();
             for i in 0..expected.len() {
                 zuc.gen_ks_block(&mut block);
                 assert_eq!(u32::from_be_bytes(block.into()), expected[i]);

@@ -102,7 +102,7 @@ impl Zuc {
         }
     }
 
-    /// Creates a ZUC128 keystream generator
+    /// Creates a ZUC keystream generator
     pub fn init(&mut self) {
         for _ in 0..32 {
             let x = self.bit_reconstruction();
@@ -200,7 +200,7 @@ impl Zuc {
         self.lfsr_with_initialization_mode(0);
     }
 
-    /// Generates the next 32-bit word in ZUC128 keystream
+    /// Generates the next 32-bit word in ZUC keystream
     pub fn generate(&mut self) -> u32 {
         self.lfsr_with_work_mode();
         let x = self.bit_reconstruction();
