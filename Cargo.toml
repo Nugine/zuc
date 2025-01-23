@@ -20,7 +20,7 @@ cipher = "0.4.4"
 const-str = "0.5.7"
 digest = { version = "0.10.7", features = ["mac"] }
 numeric_cast = "0.3.0"
-std-next = "0.1.4"
+std-next = "0.1.5"
 
 [dev-dependencies]
 criterion = "0.5.1"

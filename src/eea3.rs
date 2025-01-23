@@ -1,6 +1,70 @@
-//! ZUC Confidentiality Algorithms
+//! 128-EEA3: 3GPP confidentiality algorithm
 
-use crate::Zuc128Core;
+use stdx::slice::SliceExt;
+
+use crate::zuc128::Zuc128Core;
+
+/// 128-EEA3: 3GPP confidentiality algorithm
+/// ([EEA3-EIA3-specification](https://www.gsma.com/solutions-and-impact/technologies/security/wp-content/uploads/2019/05/EEA3_EIA3_specification_v1_8.pdf))
+pub struct Eea3(Zuc128Core);
+
+impl Eea3 {
+    /// Create a 128-EEA3 stream cipher
+    #[must_use]
+    pub fn new(count: u32, bearer: u8, direction: u8, ck: &[u8; 16]) -> Self {
+        let bearer = bearer & 0x1f;
+        let direction = direction & 0x01;
+        let count = count.to_be_bytes();
+
+        let mut iv = [0_u8; 16];
+        iv[0] = count[0];
+        iv[1] = count[1];
+        iv[2] = count[2];
+        iv[3] = count[3];
+        iv[4] = (bearer << 3) | (direction << 2);
+
+        iv[8] = iv[0];
+        iv[9] = iv[1];
+        iv[10] = iv[2];
+        iv[11] = iv[3];
+        iv[12] = iv[4];
+
+        Self(Zuc128Core::new(ck, &iv))
+    }
+}
+
+fn xor_inplace(zuc: &mut Zuc128Core, data: &mut [u8], bitlen: usize) {
+    assert!(bitlen <= data.len() * 8);
+
+    for chunk in data.as_chunks_mut_::<4>().0 {
+        let k = zuc.generate().to_be_bytes();
+        for i in 0..4 {
+            chunk[i] ^= k[i];
+        }
+    }
+
+    {
+        let i = data.len() / 4 * 4;
+        let k = zuc.generate().to_be_bytes();
+        for j in 0..data.len() % 4 {
+            data[i + j] ^= k[j];
+        }
+    }
+
+    if bitlen % 8 != 0 {
+        data[bitlen / 8] &= 0xFF << (8 - bitlen % 8);
+    }
+
+    for i in bitlen / 8 + 1..data.len() {
+        data[i] = 0;
+    }
+}
+
+fn xor_to_vec(zuc: &mut Zuc128Core, ibs: &[u8], bitlen: usize) -> Vec<u8> {
+    let mut res = ibs.to_vec();
+    xor_inplace(zuc, &mut res, bitlen);
+    res
+}
 
 /// ZUC128 xor encryption algorithm
 /// ([GB/T 33133.2-2021](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=5D3CBA3ADEC7989344BD1E63006EF2B3))
@@ -20,35 +84,8 @@ use crate::Zuc128Core;
 #[must_use]
 pub fn zuc128_xor_encrypt(ck: &[u8; 16], iv: &[u8; 16], length: u32, ibs: &[u8]) -> Vec<u8> {
     let bitlen = usize::try_from(length).expect("bit length overflow");
-    assert!(bitlen <= ibs.len() * 8);
-
     let mut zuc = Zuc128Core::new(ck, iv);
-    let mut res = ibs.to_vec();
-
-    for i in 0..ibs.len() / 4 {
-        let k = zuc.generate().to_be_bytes();
-        for j in 0..4 {
-            res[i * 4 + j] ^= k[j];
-        }
-    }
-
-    {
-        let i = ibs.len() / 4 * 4;
-        let k = zuc.generate().to_be_bytes();
-        for j in 0..ibs.len() % 4 {
-            res[i + j] ^= k[j];
-        }
-    }
-
-    if bitlen % 8 != 0 {
-        res[bitlen / 8] &= 0xFF << (8 - bitlen % 8);
-    }
-
-    for i in bitlen / 8 + 1..res.len() {
-        res[i] = 0;
-    }
-
-    res
+    xor_to_vec(&mut zuc, ibs, bitlen)
 }
 
 /// 128-EEA3: 3GPP confidentiality algorithm
@@ -77,24 +114,9 @@ pub fn eea3_encrypt(
     length: u32,
     ibs: &[u8],
 ) -> Vec<u8> {
-    let bearer = bearer & 0x1f;
-    let direction = direction & 0x01;
-    let count = count.to_be_bytes();
-
-    let mut iv = [0_u8; 16];
-    iv[0] = count[0];
-    iv[1] = count[1];
-    iv[2] = count[2];
-    iv[3] = count[3];
-    iv[4] = (bearer << 3) | (direction << 2);
-
-    iv[8] = iv[0];
-    iv[9] = iv[1];
-    iv[10] = iv[2];
-    iv[11] = iv[3];
-    iv[12] = iv[4];
-
-    zuc128_xor_encrypt(ck, &iv, length, ibs)
+    let bitlen = usize::try_from(length).expect("bit length overflow");
+    let mut eea3 = Eea3::new(count, bearer, direction, ck);
+    xor_to_vec(&mut eea3.0, ibs, bitlen)
 }
 
 #[cfg(test)]
@@ -275,7 +297,7 @@ mod tests {
         }
     }
 
-    #[should_panic(expected = "assertion failed: bitlen <= ibs.len() * 8")]
+    #[should_panic(expected = "assertion failed: bitlen <= data.len() * 8")]
     #[test]
     fn invalid_input() {
         let x = &EXAMPLE1;
