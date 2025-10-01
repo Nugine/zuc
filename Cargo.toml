@@ -17,7 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 cipher = "0.4.4"
-const-str = "0.6.4"
+const-str = "0.7.0"
 digest = { version = "0.10.7", features = ["mac"] }
 numeric_cast = "0.3.0"
 std-next = "0.1.9"
