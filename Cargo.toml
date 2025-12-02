@@ -9,7 +9,7 @@ readme = "README.md"
 documentation = "https://docs.rs/zuc"
 categories = ["cryptography"]
 keywords = ["zuc", "eea", "eia", "stream-cipher", "crypto"]
-rust-version = "1.83.0"
+rust-version = "1.86.0"
 
 [package.metadata.docs.rs]
 all-features = true
