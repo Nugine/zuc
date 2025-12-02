@@ -1,5 +1,6 @@
 //! ZUC Stream Cipher Algorithms
 
+#![no_std]
 #![deny(
     unsafe_code, //
     missing_docs,
