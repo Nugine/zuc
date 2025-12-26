@@ -19,3 +19,6 @@ ci:
     just fmt --check
     just lint -- -D warnings
     just test
+
+coverage:
+    cargo llvm-cov --all-features --lcov --output-path lcov.info
