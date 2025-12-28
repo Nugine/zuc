@@ -20,5 +20,5 @@ ci:
     just lint -- -D warnings
     just test
 
-coverage:
-    cargo llvm-cov --all-features --lcov --output-path lcov.info
+coverage *ARGS:
+    cargo llvm-cov --all-features --html {{ARGS}}

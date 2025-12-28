@@ -51,20 +51,16 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@just
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - uses: dtolnay/rust-toolchain@stable
+      - run: |
+          cargo llvm-cov --workspace --all-features --codecov --output-path target/codecov.json
+      - uses: codecov/codecov-action@v5
         with:
-          components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2
-      - name: Generate coverage report
-        run: just coverage
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/codecov.json
           fail_ci_if_error: true
