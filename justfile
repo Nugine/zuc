@@ -19,3 +19,6 @@ ci:
     just fmt --check
     just lint -- -D warnings
     just test
+
+coverage *ARGS:
+    cargo llvm-cov --all-features --html {{ARGS}}

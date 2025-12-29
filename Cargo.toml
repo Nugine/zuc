@@ -25,6 +25,7 @@ const-str = { version = "0.7.0", default-features = false }
 digest = { version = "0.10.7", default-features = false, features = ["mac"] }
 numeric_cast = "0.3.0"
 std-next = { version = "0.1.9", default-features = false }
+zerocopy = "0.8.31"
 
 [dev-dependencies]
 criterion = "0.8.0"
