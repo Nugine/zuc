@@ -21,7 +21,7 @@ std = ["cipher/std", "digest/std", "std-next/std"]
 
 [dependencies]
 cipher = { version = "0.4.4", default-features = false }
-const-str = { version = "0.7.1", default-features = false }
+const-str = { version = "1.0.0", default-features = false }
 digest = { version = "0.10.7", default-features = false, features = ["mac"] }
 numeric_cast = "0.3.0"
 std-next = { version = "0.1.9", default-features = false }
