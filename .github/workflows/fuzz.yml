@@ -1,0 +1,35 @@
+name: Fuzz
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * 0' # at midnight of each sunday
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - zuc128_keystream
+          - zuc128_mac
+          - zuc256_keystream
+          - zuc256_mac
+          - eea3
+          - eia3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-directories: fuzz/target
+      - run: cargo install cargo-fuzz
+      - name: Run fuzz target (${{ matrix.target }})
+        run: cargo fuzz run ${{ matrix.target }} -- -max_total_time=60
