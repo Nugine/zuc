@@ -1,4 +1,46 @@
 //! ZUC Stream Cipher Algorithms
+//!
+//! ## Examples
+//!
+//! Encrypt and decrypt with the RustCrypto stream cipher traits:
+//!
+//! ```
+//! use cipher::{KeyIvInit, StreamCipher};
+//! use zuc::zuc128::Zuc128StreamCipher;
+//!
+//! let key_bytes = [0u8; 16];
+//! let iv_bytes = [0u8; 16];
+//! let mut data = *b"hello world 123";
+//!
+//! let key = cipher::Key::<Zuc128StreamCipher>::from_slice(&key_bytes);
+//! let iv = cipher::Iv::<Zuc128StreamCipher>::from_slice(&iv_bytes);
+//!
+//! let mut cipher = Zuc128StreamCipher::new(key, iv);
+//! cipher.apply_keystream(&mut data);
+//!
+//! // Applying the keystream again restores the plaintext.
+//! let mut cipher = Zuc128StreamCipher::new(key, iv);
+//! cipher.apply_keystream(&mut data);
+//!
+//! assert_eq!(&data, b"hello world 123");
+//! ```
+//!
+//! Compute a 128-EIA3 integrity tag:
+//!
+//! ```
+//! use const_str::hex;
+//! use zuc::eia3::Eia3Mac;
+//!
+//! let count = 0x561e_b2dd;
+//! let bearer = 0x14;
+//! let direction = 0;
+//! let ik = &hex!("47 05 41 25 56 1e b2 dd a9 40 59 da 05 09 78 50");
+//! let msg = &hex!("00000000 00000000 00000000");
+//! let bitlen = 90;
+//!
+//! let mac = Eia3Mac::compute(count, bearer, direction, ik, msg, bitlen);
+//! assert_eq!(mac, 0x6719_a088);
+//! ```
 
 #![no_std]
 #![deny(
