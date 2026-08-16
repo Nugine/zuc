@@ -837,5 +837,4 @@ dependencies = [
  "numeric_cast",
  "rand",
  "std-next",
- "zerocopy",
 ]
