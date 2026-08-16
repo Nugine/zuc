@@ -58,6 +58,10 @@ impl Zuc128Mac {
     }
 
     /// Finish the MAC generation and return the MAC
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bitlen` is greater than `tail.len() * 8`.
     #[must_use]
     pub fn finish(mut self, mut tail: &[u8], mut bitlen: usize) -> u32 {
         assert!(bitlen <= tail.len() * 8);

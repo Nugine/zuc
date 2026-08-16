@@ -42,6 +42,7 @@ mod backend {
     use super::BLOCK_SIZE;
     use crate::zuc128::keystream::Zuc128Keystream;
     use core::arch::x86_64::{__m128i, _mm_clmulepi64_si128, _mm_cvtsi128_si64, _mm_set_epi64x};
+    use numeric_cast::TruncatingCast;
 
     pub(super) fn is_supported() -> bool {
         #[cfg(feature = "std")]
@@ -79,8 +80,8 @@ mod backend {
         blocks: &[u8],
     ) {
         for block in blocks.chunks_exact(BLOCK_SIZE) {
-            let k0 = (*key >> 32) as u32;
-            let k1 = *key as u32;
+            let k0 = (*key >> 32).truncating_cast::<u32>();
+            let k1 = (*key).truncating_cast::<u32>();
             let k2 = zuc.generate();
             let k3 = zuc.generate();
             let k4 = zuc.generate();
@@ -109,12 +110,14 @@ mod backend {
 
     #[target_feature(enable = "sse2")]
     unsafe fn contribution(product: __m128i) -> u32 {
-        ((_mm_cvtsi128_si64(product) as u64) >> 32) as u32
+        let low = u64::from_ne_bytes(_mm_cvtsi128_si64(product).to_ne_bytes());
+        (low >> 32).truncating_cast::<u32>()
     }
 
     #[inline(always)]
     fn key_pair(high: u32, low: u32) -> i64 {
-        ((u64::from(high) << 32) | u64::from(low)) as i64
+        let pair = (u64::from(high) << 32) | u64::from(low);
+        i64::from_ne_bytes(pair.to_ne_bytes())
     }
 }
 
