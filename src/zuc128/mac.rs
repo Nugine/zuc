@@ -5,6 +5,9 @@ use crate::internal::mac::{MacCore, MacKeyPair, MacWord};
 use numeric_cast::TruncatingCast;
 use stdx::default::default;
 
+#[cfg(feature = "simd")]
+mod simd;
+
 /// ZUC128 MAC generator
 /// ([GB/T 33133.3-2021](http://c.gb688.cn/bzgk/gb/showGb?type=online&hcno=C6D60AE0A7578E970EF2280ABD49F4F0))
 pub struct Zuc128Mac(MacCore<Zuc128Keystream, u32>);
@@ -44,12 +47,28 @@ impl Zuc128Mac {
 
     /// Update the MAC generator with the bytes of a message
     pub fn update(&mut self, msg: &[u8]) {
+        #[cfg(feature = "simd")]
+        {
+            if simd::update(&mut self.0, msg) {
+                return;
+            }
+        }
+
         self.0.update(msg);
     }
 
     /// Finish the MAC generation and return the MAC
     #[must_use]
-    pub fn finish(mut self, tail: &[u8], bitlen: usize) -> u32 {
+    pub fn finish(mut self, mut tail: &[u8], mut bitlen: usize) -> u32 {
+        assert!(bitlen <= tail.len() * 8);
+
+        if bitlen >= 8 {
+            let bytes = bitlen / 8;
+            self.update(&tail[..bytes]);
+            tail = &tail[bytes..];
+            bitlen %= 8;
+        }
+
         let final_bitlen = self.0.finish(tail, bitlen);
 
         let mut tag = self.0.tag;

@@ -19,6 +19,11 @@ Documentation: <https://docs.rs/zuc>
 + **Safe**: No `unsafe` code by default, unless you enable corresponding features.
 + **RustCrypto compatible**: You can use it with RustCrypto trait definitions.
 
+## Features
+
++ `std`: enable standard-library integrations from dependencies.
++ `simd`: enable optional SIMD acceleration for 128-EIA3 full-block MAC processing. On `x86_64`, this uses PCLMULQDQ with runtime detection when `std` is enabled, and compile-time target-feature detection otherwise.
+
 ## References
 
 ### Standards

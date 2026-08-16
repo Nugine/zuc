@@ -2,9 +2,9 @@
 
 #![no_std]
 #![deny(
-    unsafe_code, //
-    missing_docs,
+    missing_docs, //
 )]
+#![cfg_attr(not(feature = "simd"), deny(unsafe_code))]
 #![deny(clippy::all, clippy::pedantic, clippy::cargo)]
 #![warn(
     clippy::todo, //
@@ -17,6 +17,9 @@
 )]
 // ---
 #![cfg_attr(docsrs, feature(doc_cfg))]
+
+#[cfg(feature = "std")]
+extern crate std;
 
 mod internal {
     pub mod u256;

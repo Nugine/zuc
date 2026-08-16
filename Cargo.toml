@@ -18,6 +18,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 std = ["cipher/std", "digest/std", "std-next/std"]
+simd = []
 
 [dependencies]
 cipher = { version = "0.4.4", default-features = false }
