@@ -1,0 +1,56 @@
+[package]
+name = "zuc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.zuc]
+path = ".."
+
+[[bin]]
+name = "zuc128_keystream"
+path = "fuzz_targets/zuc128_keystream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zuc128_mac"
+path = "fuzz_targets/zuc128_mac.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zuc256_keystream"
+path = "fuzz_targets/zuc256_keystream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zuc256_mac"
+path = "fuzz_targets/zuc256_mac.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "eea3"
+path = "fuzz_targets/eea3.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "eia3"
+path = "fuzz_targets/eia3.rs"
+test = false
+doc = false
+bench = false
